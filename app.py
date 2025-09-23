@@ -182,8 +182,8 @@ def classify_scan_type(json_data):
         criteria = {
             'T1': [series_desc.startswith('T1'), inversion_time is not None, flip_angle < 20, 'GR' in scanning_sequence and 'IR' in scanning_sequence],
             'T2': [series_desc.startswith('T2'), inversion_time is None, flip_angle > 100, 'SE' in scanning_sequence],
-            'Diff': [series_desc.startswith('CMRR') and ('DIFF' in series_desc or '_SE' in series_desc), inversion_time is None, 30 < flip_angle < 100, 'EP' in scanning_sequence],
-            'Bold': [series_desc.startswith('CMRR') and 'BOLD' in series_desc, inversion_time is None, 30 < flip_angle < 100, 'EP' in scanning_sequence],
+            'Bold': [series_desc.startswith('CMRR') and ('BOLD' in series_desc or '_SE' in series_desc), inversion_time is None, 30 < flip_angle < 100, 'EP' in scanning_sequence],
+            'Diff': [series_desc.startswith('CMRR') and 'DIFF' in series_desc, inversion_time is None, 30 < flip_angle < 100, 'EP' in scanning_sequence],
             'Pcasl': [series_desc.startswith('TGSE'), inversion_time is None, flip_angle > 100, 'EP' in scanning_sequence]
         }
         
