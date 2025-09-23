@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
       '/upload': 'http://localhost:5000',
       '/get_folders': 'http://localhost:5000',
       '/classify_folder': 'http://localhost:5000',

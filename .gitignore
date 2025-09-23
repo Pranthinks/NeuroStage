@@ -1,3 +1,4 @@
 # Frontend ignores
 frontend/node_modules/
 frontend/package-lock.json
+users.json

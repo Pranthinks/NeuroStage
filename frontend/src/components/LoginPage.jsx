@@ -5,7 +5,7 @@ const LoginPage = ({ setCurrentPage, setIsAuthenticated }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     
     if (!email || !password) {
@@ -13,14 +13,34 @@ const LoginPage = ({ setCurrentPage, setIsAuthenticated }) => {
       return;
     }
 
-    // Simple demo authentication - in real app, call your backend
-    if (email === 'demo@demo.com' && password === 'demo123') {
-      localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('userEmail', email);
-      setIsAuthenticated(true);
-      setCurrentPage('home');
-    } else {
-      setError('Invalid email or password');
+    try {
+      // Call backend login API
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        // Store user data and authenticate
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userEmail', data.user.email);
+        localStorage.setItem('userName', data.user.name);
+        setIsAuthenticated(true);
+        setCurrentPage('home');
+      } else {
+        setError(data.message);
+      }
+    } catch (error) {
+      setError('Login failed. Please try again.');
+      console.error('Login error:', error);
     }
   };
 

@@ -194,11 +194,11 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
       <style>{styles}</style>
       <div className="container">
         <div>
-          <button onClick={() => setCurrentPage('home')}>🏠 Home</button>
-          <button className="nav-btn" onClick={() => setCurrentPage('classify')}>🏷️ Classify</button>
-          <button onClick={logout} style={{background: '#dc3545'}}>Logout</button>
-        </div>
-        
+  <button onClick={() => setCurrentPage('home')}>🏠 Home</button>
+  <button className="nav-btn" onClick={() => setCurrentPage('classify')}>🏷️ Classify</button>
+  <button onClick={() => setCurrentPage('main')}>🌐 Browse Public Data</button>
+  <button onClick={logout} style={{background: '#dc3545'}}>Logout</button>
+</div>
         <h1>🏷️ NIfTI File Classifier</h1>
         <p className="subtitle">Organize and view your converted files</p>
         

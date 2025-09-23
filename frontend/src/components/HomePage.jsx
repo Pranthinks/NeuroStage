@@ -180,10 +180,11 @@ const HomePage = ({ setCurrentPage, logout }) => {
       
       <div className="container">
         <div>
-          <button onClick={() => setCurrentPage('home')}>🏠 Home</button>
-          <button className="nav-btn" onClick={() => setCurrentPage('classify')}>🏷️ Classify</button>
-          <button onClick={logout} style={{background: '#dc3545'}}>Logout</button>
-        </div>
+  <button onClick={() => setCurrentPage('home')}>🏠 Home</button>
+  <button className="nav-btn" onClick={() => setCurrentPage('classify')}>🏷️ Classify</button>
+  <button onClick={() => setCurrentPage('main')}>🌐 Browse Public Data</button>
+  <button onClick={logout} style={{background: '#dc3545'}}>Logout</button>
+</div>
         
         <h1>DICOM to NIfTI Converter</h1>
         <p className="subtitle">Upload your DICOM ZIP file for conversion</p>

@@ -16,7 +16,7 @@ const RegisterPage = ({ setCurrentPage, setIsAuthenticated }) => {
     });
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
@@ -34,12 +34,36 @@ const RegisterPage = ({ setCurrentPage, setIsAuthenticated }) => {
       return;
     }
 
-    // Simple demo registration - in real app, call your backend
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('userEmail', formData.email);
-    localStorage.setItem('userName', formData.name);
-    setIsAuthenticated(true);
-    setCurrentPage('home');
+    try {
+      // Fixed: Use relative URL like in LoginPage
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        // Store user data and authenticate
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userEmail', data.user.email);
+        localStorage.setItem('userName', data.user.name);
+        setIsAuthenticated(true);
+        setCurrentPage('home');
+      } else {
+        setError(data.message);
+      }
+    } catch (error) {
+      setError('Registration failed. Please try again.');
+      console.error('Registration error:', error);
+    }
   };
 
   return (
