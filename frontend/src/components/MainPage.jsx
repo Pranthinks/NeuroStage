@@ -23,278 +23,198 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
     }
   };
 
-  const getUserName = () => {
-    return localStorage.getItem('userName') || 'User';
-  };
+  const getUserName = () => localStorage.getItem('userName') || 'User';
+
+  const baseStyles = `
+    .container { min-height: 100vh; background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%); font-family: system-ui, -apple-system, sans-serif; }
+    .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(229, 231, 235, 0.5); padding: 0 2rem; }
+    .nav-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 64px; }
+    .logo { font-size: 1.5rem; font-weight: bold; color: #1e3a8a; }
+    .nav-buttons { display: flex; align-items: center; gap: 1rem; }
+    .profile-container { position: relative; }
+    .profile-btn { display: flex; align-items: center; gap: 0.5rem; background: #2563eb; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease; }
+    .profile-btn:hover { background: #1d4ed8; }
+    .avatar { width: 32px; height: 32px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600; }
+    .profile-menu { position: absolute; top: 100%; right: 0; background: white; border-radius: 0.75rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; min-width: 200px; margin-top: 0.5rem; padding: 0.5rem 0; z-index: 100; }
+    .menu-item { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; font-size: 0.9rem; color: #374151; transition: background-color 0.15s; }
+    .menu-item:hover { background: #f9fafb; }
+    .menu-item.logout { color: #dc2626; }
+    .menu-item.logout:hover { background: #fef2f2; }
+    .main-content { padding-top: 64px; }
+    .section { padding: 5rem 0; }
+    .container-inner { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+    .hero { background: white; text-align: center; }
+    .hero h1 { font-size: 3rem; font-weight: bold; color: #111827; margin-bottom: 1.5rem; line-height: 1.1; }
+    .hero p { font-size: 1.25rem; color: #6b7280; max-width: 48rem; margin: 0 auto 2rem; line-height: 1.6; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+    .feature-card { background: white; border-radius: 1rem; padding: 2rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid #f3f4f6; transition: all 0.3s; }
+    .feature-card:hover { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: translateY(-2px); }
+    .feature-icon { width: 48px; height: 48px; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; }
+    .feature-title { font-size: 1.25rem; font-weight: 600; color: #111827; margin-bottom: 1rem; }
+    .feature-desc { color: #6b7280; line-height: 1.6; }
+    .section-header { text-align: center; margin-bottom: 3rem; }
+    .section-title { font-size: 2rem; font-weight: bold; color: #111827; margin-bottom: 1rem; }
+    .section-subtitle { color: #6b7280; }
+    .loading, .empty-state { text-align: center; padding: 3rem 0; }
+    .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid #f3f4f6; border-top: 3px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .datasets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; }
+    .dataset-card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid #f3f4f6; overflow: hidden; transition: all 0.3s; }
+    .dataset-card:hover { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+    .dataset-content { padding: 1.5rem; }
+    .dataset-name { font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem; }
+    .dataset-meta { font-size: 0.875rem; color: #9ca3af; margin-bottom: 1rem; }
+    .dataset-stats { background: #f9fafb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; text-align: center; }
+    .stat-number { font-size: 1.5rem; font-weight: bold; display: block; }
+    .stat-label { font-size: 0.75rem; color: #9ca3af; }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .tag { background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .request-btn { width: 100%; background: #2563eb; color: white; border: none; padding: 0.75rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .request-btn:hover { background: #1d4ed8; }
+    .auth-buttons { display: flex; gap: 0.75rem; }
+    .sign-in-btn { color: #6b7280; background: none; border: none; padding: 0.5rem 1rem; font-weight: 500; cursor: pointer; transition: color 0.2s; }
+    .sign-in-btn:hover { color: #2563eb; }
+    .get-started-btn { background: #2563eb; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .get-started-btn:hover { background: #1d4ed8; }
+  `;
+
+  const MenuIcon = ({ d }) => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} /></svg>;
+
+  const FeatureIcon = ({ color, d }) => (
+    <div className="feature-icon" style={{background: color}}>
+      <svg width="24" height="24" fill="none" stroke={color === '#dbeafe' ? '#2563eb' : color === '#dcfce7' ? '#16a34a' : '#9333ea'} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} />
+      </svg>
+    </div>
+  );
 
   return (
-    <div>
-      <style>{`
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
-        
-        .main-wrapper {
-          min-height: 100vh;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        .navbar {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-          background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
-          padding: 1rem 2rem; box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-        
-        .nav-content {
-          max-width: 1200px; margin: 0 auto;
-          display: flex; justify-content: space-between; align-items: center;
-        }
-        
-        .logo { font-size: 1.5rem; font-weight: 700; color: #667eea; }
-        .nav-buttons { display: flex; gap: 1rem; align-items: center; position: relative; }
-        
-        .profile-container { position: relative; }
-        .profile-btn {
-          background: #667eea; color: white; border: none; padding: 0.5rem 1rem;
-          border-radius: 20px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;
-          font-weight: 600; transition: all 0.2s ease;
-        }
-        .profile-btn:hover { background: #5a67d8; transform: translateY(-1px); }
-        
-        .profile-menu {
-          position: absolute; top: 100%; right: 0; background: white;
-          border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-          border: 1px solid #e2e8f0; min-width: 200px; z-index: 1000;
-          margin-top: 0.5rem; padding: 0.5rem 0;
-        }
-        
-        .profile-menu-item {
-          background: none; border: none; padding: 0.75rem 1rem; width: 100%;
-          text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;
-          transition: background 0.2s ease; font-size: 0.9rem;
-        }
-        
-        .profile-menu-item:hover { background: #f7fafc; }
-        .profile-menu-item.logout { color: #e53e3e; }
-        
-        .main-container { max-width: 1200px; margin: 0 auto; padding: 120px 2rem 50px; }
-        
-        .section {
-          background: rgba(255, 255, 255, 0.95); border-radius: 24px; padding: 3rem;
-          margin-bottom: 3rem; box-shadow: 0 20px 60px rgba(0,0,0,0.1); backdrop-filter: blur(10px);
-        }
-        
-        .hero-section { text-align: center; padding: 4rem; }
-        .hero-title { font-size: 3.5rem; font-weight: 800; color: #1a202c; margin-bottom: 1.5rem; }
-        .hero-subtitle { font-size: 1.25rem; color: #718096; margin-bottom: 3rem; max-width: 600px; margin-left: auto; margin-right: auto; }
-        
-        .grid {
-          display: grid; gap: 2rem; margin: 2rem 0;
-          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-        }
-        
-        .card {
-          background: white; border-radius: 16px; padding: 2rem; border: 1px solid #e2e8f0;
-          transition: all 0.3s ease; position: relative; overflow: hidden;
-        }
-        
-        .card::before {
-          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-          background: linear-gradient(90deg, #667eea, #764ba2);
-        }
-        
-        .card:hover { transform: translateY(-4px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-        
-        .feature-icon {
-          width: 64px; height: 64px; background: linear-gradient(135deg, #667eea, #764ba2);
-          border-radius: 16px; display: flex; align-items: center; justify-content: center;
-          font-size: 2rem; margin-bottom: 1.5rem;
-        }
-        
-        .card h3 { font-size: 1.5rem; font-weight: 700; color: #1a202c; margin-bottom: 1rem; }
-        .card p { color: #4a5568; line-height: 1.6; }
-        
-        .btn {
-          padding: 1rem 2rem; border-radius: 12px; font-size: 1rem; font-weight: 600;
-          border: none; cursor: pointer; transition: all 0.3s ease; min-width: 160px;
-          display: inline-flex; align-items: center; justify-content: center;
-        }
-        
-        .btn-primary {
-          background: linear-gradient(135deg, #667eea, #764ba2); color: white;
-          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-        }
-        
-        .btn-secondary {
-          background: white; color: #667eea; border: 2px solid #667eea;
-          box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-        }
-        
-        .btn:hover { transform: translateY(-2px); }
-        .btn-secondary:hover { background: #667eea; color: white; }
-        
-        .auth-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-        
-        .section-title {
-          font-size: 2.5rem; font-weight: 700; color: #1a202c;
-          margin-bottom: 2rem; text-align: center;
-        }
-        
-        .dataset-name { font-size: 1.2rem; font-weight: 600; color: #1a202c; margin-bottom: 0.5rem; }
-        .dataset-meta { font-size: 0.9rem; color: #718096; margin-bottom: 1rem; }
-        
-        .stats {
-          display: flex; justify-content: space-between; margin: 1rem 0;
-          padding: 0.75rem; background: #f8f9fa; border-radius: 8px;
-        }
-        
-        .stat { text-align: center; }
-        .stat-number { font-size: 1.4rem; font-weight: 700; color: #667eea; }
-        .stat-label { font-size: 0.8rem; color: #718096; }
-        
-        .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-        .tag {
-          background: #e6f3ff; color: #0066cc; padding: 0.25rem 0.75rem;
-          border-radius: 12px; font-size: 0.8rem; font-weight: 500;
-        }
-        
-        .request-btn {
-          width: 100%; background: linear-gradient(135deg, #667eea, #764ba2); color: white;
-          border: none; padding: 0.75rem; border-radius: 8px; font-size: 0.9rem;
-          font-weight: 600; cursor: pointer; transition: all 0.2s ease;
-        }
-        
-        .request-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3); }
-        
-        .loading, .no-data { text-align: center; padding: 2rem; color: #718096; font-size: 1.1rem; }
-        
-        @media (max-width: 768px) {
-          .main-container { padding: 100px 1rem 30px; }
-          .section { padding: 2rem 1.5rem; }
-          .hero-section { padding: 2.5rem 1.5rem; }
-          .hero-title { font-size: 2.5rem; }
-          .section-title { font-size: 2rem; }
-          .grid { grid-template-columns: 1fr; }
-          .auth-buttons { flex-direction: column; align-items: center; }
-        }
-      `}</style>
+    <div className="container">
+      <style>{baseStyles}</style>
       
-      <div className="main-wrapper">
-        <nav className="navbar">
-          <div className="nav-content">
-            <div className="logo">MedScan Pro</div>
-            <div className="nav-buttons">
-              {isAuthenticated ? (
-                <div className="profile-container">
-                  <button 
-                    className="profile-btn" 
-                    onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  >
-                    👤 {getUserName()}
-                  </button>
-                  {showProfileMenu && (
-                    <div className="profile-menu">
-                      <button 
-                        className="profile-menu-item" 
-                        onClick={() => { setCurrentPage('home'); setShowProfileMenu(false); }}
-                      >
-                        🏠 My Dashboard
-                      </button>
-                      <button 
-                        className="profile-menu-item" 
-                        onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}
-                      >
-                        🏷️ Classify Files
-                      </button>
-                      <hr style={{margin: '0.5rem 0', border: 'none', borderTop: '1px solid #e2e8f0'}} />
-                      <button 
-                        className="profile-menu-item logout" 
-                        onClick={() => { logout(); setShowProfileMenu(false); }}
-                      >
-                        🚪 Logout
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <button className="btn btn-secondary" onClick={() => setCurrentPage('login')}>Sign In</button>
-                  <button className="btn btn-primary" onClick={() => setCurrentPage('register')}>Get Started</button>
-                </>
-              )}
-            </div>
-          </div>
-        </nav>
-
-        <div className="main-container">
-          <div className="section hero-section">
-            <h1 className="hero-title">Medical Image Processing Platform</h1>
-            <p className="hero-subtitle">
-              Transform your DICOM files into NIfTI format and automatically classify them by scan type. 
-              Built for researchers and medical professionals.
-            </p>
-          </div>
-          
-          <div className="section">
-            <div className="grid">
-              <div className="card">
-                <div className="feature-icon">🔄</div>
-                <h3>DICOM to NIfTI Conversion</h3>
-                <p>Seamlessly convert DICOM images to NIfTI format using industry-standard dcm2niix tools. Batch processing support for efficient workflow.</p>
-              </div>
-              <div className="card">
-                <div className="feature-icon">🧠</div>
-                <h3>AI-Powered Classification</h3>
-                <p>Intelligent classification system that automatically categorizes scans into T1, T2, Diffusion, and PCASL based on metadata analysis.</p>
-              </div>
-              <div className="card">
-                <div className="feature-icon">📊</div>
-                <h3>Organized Data Management</h3>
-                <p>Automatic file organization with detailed reporting and easy access to processed data. Keep your research organized and accessible.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="section">
-            <h2 className="section-title">Available Datasets</h2>
-            {loading ? (
-              <div className="loading">Loading datasets...</div>
-            ) : datasets.length === 0 ? (
-              <div className="no-data">No public datasets available yet. Be the first to contribute!</div>
-            ) : (
-              <div className="grid">
-                {datasets.map((dataset) => (
-                  <div key={dataset.id} className="card">
-                    <div className="dataset-name">{dataset.name}</div>
-                    <div className="dataset-meta">
-                      Uploaded: {new Date(dataset.upload_date * 1000).toLocaleDateString()}
-                    </div>
-                    <div className="stats">
-                      <div className="stat">
-                        <div className="stat-number">{dataset.total_files}</div>
-                        <div className="stat-label">Files</div>
-                      </div>
-                      <div className="stat">
-                        <div className="stat-number">
-                          {Object.values(dataset.classifications).reduce((a, b) => a + b, 0)}
-                        </div>
-                        <div className="stat-label">Classified</div>
-                      </div>
-                    </div>
-                    {dataset.has_classification && (
-                      <div className="tags">
-                        {Object.entries(dataset.classifications)
-                          .filter(([_, count]) => count > 0)
-                          .map(([type, count]) => (
-                            <div key={type} className="tag">
-                              {type.replace('_scans', '').toUpperCase()} ({count})
-                            </div>
-                          ))
-                        }
-                      </div>
-                    )}
-                    <button className="request-btn" onClick={() => setCurrentPage('login')}>
-                      Login to Request Access
+      <nav className="navbar">
+        <div className="nav-content">
+          <div className="logo">MedScan Pro</div>
+          <div className="nav-buttons">
+            {isAuthenticated ? (
+              <div className="profile-container">
+                <button className="profile-btn" onClick={() => setShowProfileMenu(!showProfileMenu)}>
+                  <div className="avatar">{getUserName().charAt(0).toUpperCase()}</div>
+                  <span>{getUserName()}</span>
+                  <MenuIcon d="M19 9l-7 7-7-7" />
+                </button>
+                {showProfileMenu && (
+                  <div className="profile-menu">
+                    <button className="menu-item" onClick={() => { setCurrentPage('home'); setShowProfileMenu(false); }}>
+                      <MenuIcon d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                      <span>My Dashboard</span>
                     </button>
+                    <button className="menu-item" onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}>
+                      <MenuIcon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      <span>Classify Files</span>
+                    </button>
+                    <hr style={{ margin: '0.5rem 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+                    <button className="menu-item logout" onClick={() => { logout(); setShowProfileMenu(false); }}>
+                      <MenuIcon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="auth-buttons">
+                <button className="sign-in-btn" onClick={() => setCurrentPage('login')}>Sign In</button>
+                <button className="get-started-btn" onClick={() => setCurrentPage('register')}>Get Started</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <div className="main-content">
+        <div className="section hero">
+          <div className="container-inner">
+            <h1>Medical Image Processing Platform</h1>
+            <p>Transform your DICOM files into NIfTI format and automatically classify them by scan type. Built for researchers and medical professionals.</p>
+          </div>
+        </div>
+
+        <div className="section">
+          <div className="container-inner">
+            <div className="features-grid">
+              <div className="feature-card">
+                <FeatureIcon color="#dbeafe" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <h3 className="feature-title">DICOM to NIfTI Conversion</h3>
+                <p className="feature-desc">Seamlessly convert DICOM images to NIfTI format using industry-standard dcm2niix tools. Batch processing support for efficient workflow.</p>
+              </div>
+              <div className="feature-card">
+                <FeatureIcon color="#dcfce7" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                <h3 className="feature-title">AI-Powered Classification</h3>
+                <p className="feature-desc">Intelligent classification system that automatically categorizes scans into T1, T2, Diffusion, and PCASL based on metadata analysis.</p>
+              </div>
+              <div className="feature-card">
+                <FeatureIcon color="#f3e8ff" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                <h3 className="feature-title">Organized Data Management</h3>
+                <p className="feature-desc">Automatic file organization with detailed reporting and easy access to processed data. Keep your research organized and accessible.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="section" style={{background: 'white'}}>
+          <div className="container-inner">
+            <div className="section-header">
+              <h2 className="section-title">Available Datasets</h2>
+              <p className="section-subtitle">Explore publicly available datasets from our community</p>
+            </div>
+            
+            {loading ? (
+              <div className="loading">
+                <div className="spinner"></div>
+                <p style={{color: '#6b7280', marginTop: '1rem'}}>Loading datasets...</p>
+              </div>
+            ) : datasets.length === 0 ? (
+              <div className="empty-state">
+                <svg width="64" height="64" fill="none" stroke="#9ca3af" viewBox="0 0 24 24" style={{margin: '0 auto 1rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m7-8v2m0 0V5h2m-2 2h2" />
+                </svg>
+                <h3 style={{fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem'}}>No datasets available yet</h3>
+                <p style={{color: '#6b7280'}}>Be the first to contribute to our community!</p>
+              </div>
+            ) : (
+              <div className="datasets-grid">
+                {datasets.map((dataset) => (
+                  <div key={dataset.id} className="dataset-card">
+                    <div className="dataset-content">
+                      <h3 className="dataset-name">{dataset.name}</h3>
+                      <p className="dataset-meta">Uploaded: {new Date(dataset.upload_date * 1000).toLocaleDateString()}</p>
+                      <div className="dataset-stats">
+                        <div>
+                          <span className="stat-number" style={{color: '#2563eb'}}>{dataset.total_files}</span>
+                          <span className="stat-label">Total Files</span>
+                        </div>
+                        <div>
+                          <span className="stat-number" style={{color: '#16a34a'}}>
+                            {Object.values(dataset.classifications).reduce((a, b) => a + b, 0)}
+                          </span>
+                          <span className="stat-label">Classified</span>
+                        </div>
+                      </div>
+                      {dataset.has_classification && (
+                        <div className="tags">
+                          {Object.entries(dataset.classifications)
+                            .filter(([_, count]) => count > 0)
+                            .map(([type, count]) => (
+                              <span key={type} className="tag">
+                                {type.replace('_scans', '').toUpperCase()} ({count})
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                      <button className="request-btn" onClick={() => setCurrentPage('login')}>
+                        Request Access
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
