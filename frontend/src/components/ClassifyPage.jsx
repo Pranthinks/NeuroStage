@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 
 const ClassifyPage = ({ setCurrentPage, logout }) => {
   const [folders, setFolders] = useState([]);
-  const [result, setResult] = useState('');
-  const [showResult, setShowResult] = useState(false);
-  const [classifyingFolder, setClassifyingFolder] = useState(null);
   const [viewingFolder, setViewingFolder] = useState(null);
   const [classifiedFiles, setClassifiedFiles] = useState(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -21,58 +18,6 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
       if (data.status === 'success') setFolders(data.folders);
     } catch (error) {
       console.error('Error loading folders:', error);
-    }
-  };
-  
-  const classifyFolder = async (folderName) => {
-    setClassifyingFolder(folderName);
-    setResult('');
-    setShowResult(false);
-    
-    try {
-      const response = await fetch('/classify_folder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder_path: folderName })
-      });
-      
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        setResult(`
-          <div class="message success">
-            <div class="message-content">
-              <div class="message-title">Classification Complete for ${folderName}!</div>
-              <div class="message-subtitle">Files organized into:</div>
-              <div class="summary-list">
-                ${data.summary.map(cat => 
-                  `<div class="summary-item">${cat.folder}: ${cat.count} files</div>`
-                ).join('')}
-              </div>
-            </div>
-          </div>
-        `);
-      } else {
-        setResult(`
-          <div class="message error">
-            <div class="message-title">Classification Failed</div>
-            <div class="message-subtitle">${data.message}</div>
-          </div>
-        `);
-      }
-      
-      setShowResult(true);
-      if (data.status === 'success') setTimeout(loadFolders, 2000);
-    } catch (error) {
-      setResult(`
-        <div class="message error">
-          <div class="message-title">Network Error</div>
-          <div class="message-subtitle">${error.message}</div>
-        </div>
-      `);
-      setShowResult(true);
-    } finally {
-      setClassifyingFolder(null);
     }
   };
 
@@ -113,12 +58,11 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
 
   const getClassificationDisplay = (classification) => {
     const config = {
-      'T1_scans': { name: 'T1 SCANS', color: 'blue' },
-      'T2_scans': { name: 'T2 SCANS', color: 'green' },
-      'Diff_scans': { name: 'DIFFUSION', color: 'purple' },
-      'Bold_scans': { name: 'BOLD SCANS', color: 'orange' },
-      'Pcasl_scans': { name: 'PCASL', color: 'red' },
-      'unclassified': { name: 'UNCLASSIFIED', color: 'gray' }
+      'anat': { name: 'T1 AND T2', color: 'blue' },
+      'func': { name: 'BOLD SEQUENCES', color: 'orange'},
+      'dwi': { name: 'DIFFUSION', color: 'purple'},
+      'perf': { name: 'PCASL SEQUENCES', color: 'red'},
+      'unclassified': { name: 'UNCLASSIFIED', color: 'gray'}
     };
     return config[classification] || config['unclassified'];
   };
@@ -177,16 +121,8 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
     .folder-info { flex: 1; }
     .folder-name { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
     .folder-title { font-size: 1.125rem; font-weight: 600; color: #111827; }
-    .classified-badge { background: #dcfce7; color: #166534; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
     .folder-meta { font-size: 0.875rem; color: #6b7280; }
     .folder-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-    .message { padding: 1rem; border-radius: 0.5rem; margin-top: 2rem; }
-    .message.success { background: #ecfdf5; border: 1px solid #bbf7d0; color: #065f46; }
-    .message.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-    .message-title { font-weight: 600; margin-bottom: 0.5rem; }
-    .message-subtitle { font-size: 0.875rem; margin-bottom: 0.75rem; }
-    .summary-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .summary-item { padding: 0.5rem; background: rgba(255, 255, 255, 0.3); border-radius: 0.375rem; font-weight: 500; }
     .classification-section { margin-bottom: 1.5rem; border-radius: 1rem; overflow: hidden; }
     .classification-header { padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
     .classification-header.blue { background: #eff6ff; color: #1e40af; border-left: 4px solid #3b82f6; }
@@ -253,7 +189,7 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
                   </button>
                   <button className="menu-item active" onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}>
                     <Icon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    Classify Files
+                    View Files
                   </button>
                   <div className="menu-divider" />
                   <button className="menu-item logout" onClick={() => { logout(); setShowProfileMenu(false); }}>
@@ -268,7 +204,8 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
 
         <div className="main-content">
           <div className="header">
-            <h1>Viewing: {viewingFolder}</h1>
+            <h1>{viewingFolder}</h1>
+            <p>BIDS Classified Files</p>
           </div>
           
           {Object.entries(classifiedFiles).map(([classification, files]) => {
@@ -303,7 +240,7 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
                             <div className="file-info">
                               <div className="file-name">{file.base_name}</div>
                               <div className="file-meta">
-                                Size: {formatFileSize(file.file_size)} • Files: {file.total_files} • Modified: {new Date(file.modified * 1000).toLocaleDateString()}
+                                Size: {formatFileSize(file.file_size)} • Modified: {new Date(file.modified * 1000).toLocaleDateString()}
                                 {file.json_file && ' • Has JSON'}
                               </div>
                             </div>
@@ -343,7 +280,7 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
           <div className="nav-buttons">
             <div className="nav-links">
               <button className="nav-link" onClick={() => setCurrentPage('home')}>Dashboard</button>
-              <button className="nav-link active" onClick={() => setCurrentPage('classify')}>Classify</button>
+              <button className="nav-link active" onClick={() => setCurrentPage('classify')}>View Files</button>
               <button className="nav-link" onClick={() => setCurrentPage('main')}>Browse Data</button>
             </div>
             
@@ -361,7 +298,7 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
                   </button>
                   <button className="menu-item active" onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}>
                     <Icon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    Classify Files
+                    View Files
                   </button>
                   <button className="menu-item mobile-only" onClick={() => { setCurrentPage('main'); setShowProfileMenu(false); }}>
                     <Icon d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
@@ -381,13 +318,13 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
 
       <div className="main-content">
         <div className="header">
-          <h1>NIfTI File Classifier</h1>
-          <p>Organize and view your converted medical imaging files</p>
+          <h1>Classified BIDS Files</h1>
+          <p>View your organized medical imaging files</p>
         </div>
         
         <div className="card">
           <div className="card-header">
-            <h2 className="card-title">Available Folders</h2>
+            <h2 className="card-title">Available Datasets</h2>
             <button className="btn btn-primary" onClick={loadFolders}>
               <Icon d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               Refresh
@@ -398,7 +335,7 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
             {folders.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">📁</div>
-                <h3>No converted folders found</h3>
+                <h3>No datasets found</h3>
                 <p>Convert some DICOM files first to get started</p>
                 <button className="btn btn-primary" onClick={() => setCurrentPage('home')}>
                   Go to Converter
@@ -412,46 +349,24 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
                       <div className="folder-info">
                         <div className="folder-name">
                           <span className="folder-title">{folder.name}</span>
-                          {folder.has_classification && (
-                            <span className="classified-badge">Classified</span>
-                          )}
                         </div>
                         <div className="folder-meta">
-                          {folder.file_count} NIfTI files • Created: {new Date(folder.created * 1000).toLocaleDateString()}
+                          {folder.file_count} files • Created: {new Date(folder.created * 1000).toLocaleDateString()}
                         </div>
                       </div>
                       
                       <div className="folder-actions">
-                        {folder.has_classification && (
-                          <button 
-                            className="btn btn-success" 
-                            onClick={() => viewClassifiedFiles(folder.name)} 
-                            disabled={loadingFiles && viewingFolder === folder.name}
-                          >
-                            {loadingFiles && viewingFolder === folder.name ? (
-                              <div className="spinner"></div>
-                            ) : (
-                              <Icon d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            )}
-                            View Files
-                          </button>
-                        )}
                         <button 
-                          className="btn btn-primary" 
-                          onClick={() => classifyFolder(folder.name)} 
-                          disabled={classifyingFolder === folder.name}
+                          className="btn btn-success" 
+                          onClick={() => viewClassifiedFiles(folder.name)} 
+                          disabled={loadingFiles && viewingFolder === folder.name}
                         >
-                          {classifyingFolder === folder.name ? (
+                          {loadingFiles && viewingFolder === folder.name ? (
                             <div className="spinner"></div>
                           ) : (
-                            <Icon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            <Icon d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           )}
-                          {classifyingFolder === folder.name 
-                            ? 'Classifying...' 
-                            : folder.has_classification 
-                              ? 'Re-classify' 
-                              : 'Classify'
-                          }
+                          View Files
                         </button>
                       </div>
                     </div>
@@ -461,10 +376,6 @@ const ClassifyPage = ({ setCurrentPage, logout }) => {
             )}
           </div>
         </div>
-        
-        {showResult && (
-          <div dangerouslySetInnerHTML={{ __html: result }} />
-        )}
       </div>
     </div>
   );

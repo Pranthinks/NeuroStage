@@ -25,6 +25,28 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
 
   const getUserName = () => localStorage.getItem('userName') || 'User';
 
+  const getClassificationLabel = (key) => {
+    const labels = {
+      'anat': 'T1 AND T2',
+      'func': 'BOLD SCANS',
+      'dwi': 'DIFFUSION',
+      'perf': 'PCASL SCANS',
+      'unclassified': 'UNCLASSIFIED'
+    };
+    return labels[key] || key;
+  };
+
+  const getClassificationColor = (key) => {
+    const colors = {
+      'anat': '#3b82f6',
+      'func': '#fb923c',
+      'dwi': '#8b5cf6',
+      'perf': '#ef4444',
+      'unclassified': '#6b7280'
+    };
+    return colors[key] || '#6b7280';
+  };
+
   const baseStyles = `
     .container { min-height: 100vh; background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%); font-family: system-ui, -apple-system, sans-serif; }
     .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(229, 231, 235, 0.5); padding: 0 2rem; }
@@ -62,13 +84,17 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
     .dataset-card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid #f3f4f6; overflow: hidden; transition: all 0.3s; }
     .dataset-card:hover { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
     .dataset-content { padding: 1.5rem; }
-    .dataset-name { font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem; }
+    .dataset-name { font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 0.5rem; }
+    .dataset-desc { font-size: 0.875rem; color: #6b7280; margin-bottom: 1rem; }
     .dataset-meta { font-size: 0.875rem; color: #9ca3af; margin-bottom: 1rem; }
-    .dataset-stats { background: #f9fafb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; text-align: center; }
-    .stat-number { font-size: 1.5rem; font-weight: bold; display: block; }
-    .stat-label { font-size: 0.75rem; color: #9ca3af; }
-    .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-    .tag { background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .dataset-stats { background: #f9fafb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; }
+    .stat-row:not(:last-child) { border-bottom: 1px solid #e5e7eb; }
+    .stat-label { font-size: 0.875rem; color: #6b7280; font-weight: 500; }
+    .stat-value { font-size: 1rem; font-weight: 600; }
+    .total-stat { background: white; border-radius: 0.5rem; padding: 0.75rem; margin-bottom: 1rem; text-align: center; }
+    .total-number { font-size: 2rem; font-weight: bold; color: #2563eb; display: block; margin-bottom: 0.25rem; }
+    .total-label { font-size: 0.875rem; color: #6b7280; }
     .request-btn { width: 100%; background: #2563eb; color: white; border: none; padding: 0.75rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
     .request-btn:hover { background: #1d4ed8; }
     .auth-buttons { display: flex; gap: 0.75rem; }
@@ -111,7 +137,7 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
                     </button>
                     <button className="menu-item" onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}>
                       <MenuIcon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      <span>Classify Files</span>
+                      <span>View Files</span>
                     </button>
                     <hr style={{ margin: '0.5rem 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
                     <button className="menu-item logout" onClick={() => { logout(); setShowProfileMenu(false); }}>
@@ -149,8 +175,8 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
               </div>
               <div className="feature-card">
                 <FeatureIcon color="#dcfce7" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                <h3 className="feature-title">AI-Powered Classification</h3>
-                <p className="feature-desc">Intelligent classification system that automatically categorizes scans into T1, T2, Diffusion, and PCASL based on metadata analysis.</p>
+                <h3 className="feature-title">BIDS-Compliant Classification</h3>
+                <p className="feature-desc">Automatic classification system that organizes scans into BIDS-compliant folders: anatomical, functional, diffusion, and perfusion imaging.</p>
               </div>
               <div className="feature-card">
                 <FeatureIcon color="#f3e8ff" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -188,30 +214,22 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
                     <div className="dataset-content">
                       <h3 className="dataset-name">{dataset.name}</h3>
                       <p className="dataset-meta">Uploaded: {new Date(dataset.upload_date * 1000).toLocaleDateString()}</p>
-                      <div className="dataset-stats">
-                        <div>
-                          <span className="stat-number" style={{color: '#2563eb'}}>{dataset.total_files}</span>
-                          <span className="stat-label">Total Files</span>
-                        </div>
-                        <div>
-                          <span className="stat-number" style={{color: '#16a34a'}}>
-                            {Object.values(dataset.classifications).reduce((a, b) => a + b, 0)}
-                          </span>
-                          <span className="stat-label">Classified</span>
-                        </div>
+                      
+                      <div className="total-stat">
+                        <span className="total-number">{dataset.total_files}</span>
+                        <span className="total-label">Total Files</span>
                       </div>
-                      {dataset.has_classification && (
-                        <div className="tags">
-                          {Object.entries(dataset.classifications)
-                            .filter(([_, count]) => count > 0)
-                            .map(([type, count]) => (
-                              <span key={type} className="tag">
-                                {type.replace('_scans', '').toUpperCase()} ({count})
-                              </span>
-                            ))}
-                        </div>
-                      )}
-                      <button className="request-btn" onClick={() => setCurrentPage('login')}>
+                      
+                      <div className="dataset-stats">
+                        {Object.entries(dataset.classifications || {}).map(([key, count]) => (
+                          <div key={key} className="stat-row">
+                            <span className="stat-label">{getClassificationLabel(key)}</span>
+                            <span className="stat-value" style={{color: getClassificationColor(key)}}>{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <button className="request-btn" onClick={() => alert('Access request feature coming soon!')}>
                         Request Access
                       </button>
                     </div>
