@@ -1,37 +1,160 @@
 from flask import Flask, request, send_file, jsonify
 import os, zipfile, subprocess, uuid, shutil, json
+import pydicom
 
 app = Flask(__name__)
 USERS_FILE = 'users.json'
 
-# Helper functions
+DCM2BIDS_CONFIG = {
+    "descriptions": [
+        {"datatype": "anat", "suffix": "T1w", "criteria": {
+    "SeriesDescription": {
+      "any": [
+          "*t1*", "*T1*", "*T1W*", "*t1w*",
+          "*MPRAGE*", "*mprage*", "*MPRage*", "*Mprage*",
+          "*BRAVO*", "*bravo*", "*Bravo*",
+          "*SPGR*", "*spgr*",
+          "*TFE*", "*tfe*", "*3DTFE*",
+          "*T1_*", "*_T1*", "*-T1*", "*T1-*",
+          "*sag*t1*", "*ax*t1*", "*cor*t1*",
+          "*3D*T1*", "*T1*3D*",
+          "*GR_IR*", "*FSPGR*", "*fspgr*",
+          "*IR-*", "*-IR*",
+          "*t1_mpr*", "*mpr_t1*",
+          "*structural*", "*STRUCTURAL*"
+        ]
+    },
+    "FlipAngle": {"lt": "20"}
+  }},
+        {
+  "datatype": "anat",
+  "suffix": "T2w",
+  "criteria": {
+    "SeriesDescription": {
+      "any": ["T2*", "*t2*", "*T2*", "*T2W*", "*t2w*",
+          "*TSE*", "*tse*", "*FSE*", "*fse*",
+          "*SPACE*", "*space*", "*Space*",
+          "*CUBE*", "*cube*", "*Cube*",
+          "*FRFSE*", "*frfse*",
+          "*T2_*", "*_T2*", "*-T2*", "*T2-*",
+          "*sag*t2*", "*ax*t2*", "*cor*t2*",
+          "*3D*T2*", "*T2*3D*",
+          "*t2_spc*", "*spc_t2*",
+          "*T2*DRIVE*", "*T2*drive*",
+          "*RESTORE*", "*restore*"]
+    },
+    "FlipAngle": {
+      "gt": "100"
+    },
+    "ScanningSequence": "*SE*"
+  }
+},
+        {
+  "datatype": "func",
+  "suffix": "bold",
+  "criteria": {
+    "SeriesDescription": {
+      "any": ["*bold*","*_se*", "*BOLD*", "*Bold*",
+"*fmri*", "*fMRI*", "*FMRI*", "*Fmri*",
+"*func*", "*FUNC*", "*Func*", "*functional*", "*FUNCTIONAL*",
+"*task*", "*TASK*", "*Task*",
+"*bold_*", "*_bold*",
+"*fmri_*", "*_fmri*"
+]
+    },
+    "FlipAngle": {
+      "btwe": ["30", "100"]
+    },
+    "ScanningSequence": "*EP*"
+  }
+},
+        {
+  "datatype": "dwi",
+  "suffix": "dwi",
+  "criteria": {
+    "SeriesDescription": {
+      "any": [
+          "*dwi*", "*DWI*", "*Dwi*",
+          "*dti*", "*DTI*", "*Dti*",
+          "*diff*", "*DIFF*", "*Diff*", "*diffusion*", "*DIFFUSION*",
+          "*dw*", "*DW*",
+          "*dwi_*", "*_dwi*", "*-dwi*", "*dwi-*",
+          "*dti_*", "*_dti*", "*-dti*", "*dti-*",
+          "*ep2d*diff*", "*ep_b*",
+          "*tensor*", "*TENSOR*",
+          "*HARDI*", "*hardi*"
+        ]
+    },
+    "FlipAngle": {
+      "btwe": ["30", "100"]
+    },
+    "ScanningSequence": "*EP*"
+  }
+},
+       {
+  "datatype": "perf",
+  "suffix": "asl",
+  "criteria": {
+    "SeriesDescription": {
+      "any": ["*pcasl*", "*PCASL*", "*Perfusion*", "*asl*", "*ASL*", "*Asl*",
+          "*arterial*spin*", "*ARTERIAL*SPIN*",
+          "*pcasl*", "*PCASL*", "*pCASL*", "*pASL*",
+          "*casl*", "*CASL*",
+          "*asl_*", "*_asl*",
+          "*perfusion*", "*PERFUSION*"]
+    },
+    "FlipAngle": {
+      "gt": "100"
+    },
+    "ScanningSequence": "*EP*"
+  }
+}
+]
+}
+
 def load_users():
     try:
-        with open(USERS_FILE, 'r') as f:
-            return json.load(f) if os.path.exists(USERS_FILE) else {}
+        return json.load(open(USERS_FILE)) if os.path.exists(USERS_FILE) else {}
     except:
         return {}
 
 def save_users(users):
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f, indent=2)
+    json.dump(users, open(USERS_FILE, 'w'), indent=2)
 
-def find_user(email):
-    return load_users().get(email)
+def is_dicom_file(filepath):
+    try:
+        pydicom.dcmread(filepath, stop_before_pixels=True)
+        return True
+    except:
+        return filepath.lower().endswith(('.dcm', '.dicom', '.ima'))
 
-# Auth routes
+def consolidate_dicom_files(source_dir, target_dir):
+    os.makedirs(target_dir, exist_ok=True)
+    dicom_count = 0
+    for dirpath, _, filenames in os.walk(source_dir):
+        for filename in filenames:
+            filepath = os.path.join(dirpath, filename)
+            if is_dicom_file(filepath):
+                rel_path = os.path.relpath(dirpath, source_dir)
+                target_subdir = os.path.join(target_dir, rel_path)
+                os.makedirs(target_subdir, exist_ok=True)
+                shutil.copy2(filepath, os.path.join(target_subdir, filename))
+                dicom_count += 1
+    return dicom_count
+
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.get_json()
     if not all(k in data for k in ['name', 'email', 'password']):
         return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
-    if find_user(data['email']):
+    if data['email'] in load_users():
         return jsonify({'status': 'error', 'message': 'Email already registered'}), 400
     
     users = load_users()
-    users[data['email']] = {'name': data['name'], 'email': data['email'], 'password': data['password']}
+    users[data['email']] = {k: data[k] for k in ['name', 'email', 'password']}
     save_users(users)
-    return jsonify({'status': 'success', 'message': 'User registered successfully', 'user': {'name': data['name'], 'email': data['email']}})
+    return jsonify({'status': 'success', 'message': 'User registered successfully', 
+                    'user': {'name': data['name'], 'email': data['email']}})
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -39,12 +162,12 @@ def login():
     if not all(k in data for k in ['email', 'password']):
         return jsonify({'status': 'error', 'message': 'Missing email or password'}), 400
     
-    user = find_user(data['email'])
+    user = load_users().get(data['email'])
     if user and user['password'] == data['password']:
-        return jsonify({'status': 'success', 'message': 'Login successful', 'user': {'name': user['name'], 'email': user['email']}})
+        return jsonify({'status': 'success', 'message': 'Login successful', 
+                       'user': {'name': user['name'], 'email': user['email']}})
     return jsonify({'status': 'error', 'message': 'Invalid email or password'}), 401
 
-# Main routes
 @app.route('/')
 def home():
     return send_file('home.html')
@@ -55,97 +178,97 @@ def classify_page():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    file = request.files['file']
     temp_folder = f"temp_{str(uuid.uuid4())[:8]}"
+    paths = {k: f"{temp_folder}/{v}" for k, v in {
+        'extract': 'extracted', 'dicom': 'sourcedata', 'bids': 'bids_output',
+        'config': 'config.json', 'unclass': 'unclassified', 'zip': 'input.zip'
+    }.items()}
+    
     try:
-        for subdir in ['dicom', 'output']:
-            os.makedirs(f"{temp_folder}/{subdir}", exist_ok=True)
+        os.makedirs(paths['extract'], exist_ok=True)
+        os.makedirs(paths['unclass'], exist_ok=True)
         
-        zip_path = f"{temp_folder}/input.zip"
-        file.save(zip_path)
+        request.files['file'].save(paths['zip'])
+        zipfile.ZipFile(paths['zip']).extractall(paths['extract'])
         
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(f"{temp_folder}/dicom")
+        dicom_count = consolidate_dicom_files(paths['extract'], paths['dicom'])
+        if dicom_count == 0:
+            return jsonify({"status": "error", "message": "No DICOM files found in ZIP"}), 400
         
-        subprocess.run(["dcm2niix", "-o", f"{temp_folder}/output", "-f", "%p_%s", f"{temp_folder}/dicom"])
-        return jsonify({"status": "success", "message": "Conversion completed!", "folder_path": temp_folder})
+        json.dump(DCM2BIDS_CONFIG, open(paths['config'], 'w'), indent=2)
+        subprocess.run(["dcm2bids", "-d", paths['dicom'], "-p", "sub-01", 
+                       "-c", paths['config'], "-o", paths['bids']], check=True)
+        
+        tmp_path = os.path.join(paths['bids'], "tmp_dcm2bids", "sub-01")
+        if os.path.exists(tmp_path):
+            for item in os.listdir(tmp_path):
+                src = os.path.join(tmp_path, item)
+                dst = os.path.join(paths['unclass'], item)
+                (shutil.move if os.path.isfile(src) else 
+                 lambda s, d: shutil.copytree(s, d))(src, dst)
+            shutil.rmtree(os.path.join(paths['bids'], "tmp_dcm2bids"), ignore_errors=True)
+        
+        shutil.rmtree(paths['extract'], ignore_errors=True)
+        
+        return jsonify({"status": "success", 
+                       "message": f"Conversion completed! Found {dicom_count} DICOM files.",
+                       "folder_path": temp_folder, "dicom_count": dicom_count})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-def get_classification_folders():
-    return ['T1_scans', 'T2_scans', 'Diff_scans', 'Bold_scans', 'Pcasl_scans', 'unclassified']
-
-def get_medical_files(folder_path):
-    extensions = ['.nii', '.nii.gz', '.dcm', '.ima', '.img', '.hdr', '.mnc', '.mgh', '.mgz']
-    return [f for f in os.listdir(folder_path) if any(f.endswith(ext) for ext in extensions)]
 
 @app.route('/get_folders', methods=['GET'])
 def get_folders():
     try:
         folders = []
-        classification_folders = get_classification_folders()
-        
         for item in os.listdir('.'):
-            if os.path.isdir(item) and item.startswith('temp_'):
-                output_path = os.path.join(item, 'output')
-                if os.path.exists(output_path):
-                    medical_files = get_medical_files(output_path)
+            if item.startswith('temp_') and os.path.isdir(item):
+                bids_path = os.path.join(item, 'bids_output')
+                if os.path.exists(bids_path):
                     folders.append({
                         'name': item,
-                        'file_count': len(medical_files),
+                        'file_count': sum(len(files) for _, _, files in os.walk(bids_path)),
                         'created': os.path.getctime(item),
-                        'has_classification': any(os.path.exists(os.path.join(item, cf)) for cf in classification_folders)
+                        'has_classification': True
                     })
-        
-        folders.sort(key=lambda x: x['created'], reverse=True)
-        return jsonify({"status": "success", "folders": folders})
+        return jsonify({"status": "success", "folders": sorted(folders, key=lambda x: x['created'], reverse=True)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def get_files_in_dir(dir_path):
+    files = []
+    if os.path.exists(dir_path):
+        for file in os.listdir(dir_path):
+            if file.endswith(('.nii', '.nii.gz')):
+                file_path = os.path.join(dir_path, file)
+                json_file = file.replace('.nii.gz', '.json').replace('.nii', '.json')
+                files.append({
+                    'base_name': file.split('.')[0],
+                    'main_file': file,
+                    'json_file': json_file if os.path.exists(os.path.join(dir_path, json_file)) else None,
+                    'file_size': os.path.getsize(file_path),
+                    'modified': os.path.getmtime(file_path)
+                })
+    return files
 
 @app.route('/get_classified_files/<folder_name>', methods=['GET'])
 def get_classified_files(folder_name):
     try:
-        if not os.path.exists(folder_name):
-            return jsonify({"status": "error", "message": "Folder not found"}), 404
+        bids_path = os.path.join(folder_name, 'bids_output', 'sub-01')
+        classified_data = {dt: get_files_in_dir(os.path.join(bids_path, dt)) 
+                          for dt in ['anat', 'func', 'dwi', 'perf']}
+        classified_data['unclassified'] = get_files_in_dir(os.path.join(folder_name, 'unclassified'))
         
-        classified_data = {}
-        
-        for classification in get_classification_folders():
-            classification_path = os.path.join(folder_name, classification)
-            files = []
-            
-            if os.path.exists(classification_path):
-                file_groups = {}
-                for file in os.listdir(classification_path):
-                    base_name = file.split('.')[0]
-                    if base_name not in file_groups:
-                        file_groups[base_name] = []
-                    file_groups[base_name].append(file)
-                
-                for base_name, group_files in file_groups.items():
-                    main_file = next((f for f in group_files if f.endswith(('.nii.gz', '.nii'))), None)
-                    json_file = next((f for f in group_files if f.endswith('.json')), None)
-                    
-                    if main_file:
-                        file_path = os.path.join(classification_path, main_file)
-                        files.append({
-                            'base_name': base_name, 'main_file': main_file, 'json_file': json_file,
-                            'other_files': [f for f in group_files if f not in [main_file, json_file]],
-                            'total_files': len(group_files), 'file_size': os.path.getsize(file_path),
-                            'modified': os.path.getmtime(file_path)
-                        })
-                
-                files.sort(key=lambda x: x['base_name'])
-            classified_data[classification] = files
-        
-        return jsonify({"status": "success", "folder_name": folder_name, "classified_files": classified_data})
+        return jsonify({"status": "success", "folder_name": folder_name, 
+                       "classified_files": classified_data})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/download_file/<folder_name>/<classification>/<filename>')
 def download_file(folder_name, classification, filename):
     try:
-        file_path = os.path.join('.', folder_name, classification, filename)
+        file_path = (os.path.join(folder_name, 'unclassified', filename) if classification == 'unclassified'
+                    else os.path.join(folder_name, 'bids_output', 'sub-01', classification, filename))
+        
         if not os.path.exists(file_path):
             return jsonify({"status": "error", "message": "File not found"}), 404
         return send_file(file_path, as_attachment=True)
@@ -155,92 +278,20 @@ def download_file(folder_name, classification, filename):
 @app.route('/download_classification/<folder_name>/<classification>')
 def download_classification(folder_name, classification):
     try:
-        classification_path = os.path.join('.', folder_name, classification)
-        if not os.path.exists(classification_path):
+        class_path = (os.path.join(folder_name, 'unclassified') if classification == 'unclassified'
+                     else os.path.join(folder_name, 'bids_output', 'sub-01', classification))
+        
+        if not os.path.exists(class_path):
             return jsonify({"status": "error", "message": "Classification folder not found"}), 404
         
         zip_filename = f"{folder_name}_{classification}.zip"
-        zip_path = os.path.join('.', zip_filename)
-        
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(classification_path):
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(class_path):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    zipf.write(file_path, os.path.relpath(file_path, classification_path))
+                    zipf.write(file_path, os.path.relpath(file_path, class_path))
         
-        return send_file(zip_path, as_attachment=True, download_name=zip_filename)
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-def classify_scan_type(json_data):
-    try:
-        series_desc = json_data.get('SeriesDescription', '').upper()
-        inversion_time = json_data.get('InversionTime', None)
-        flip_angle = json_data.get('FlipAngle', 0)
-        scanning_sequence = json_data.get('ScanningSequence', '')
-        
-        criteria = {
-            'T1': [series_desc.startswith('T1'), inversion_time is not None, flip_angle < 20, 'GR' in scanning_sequence and 'IR' in scanning_sequence],
-            'T2': [series_desc.startswith('T2'), inversion_time is None, flip_angle > 100, 'SE' in scanning_sequence],
-            'Bold': [series_desc.startswith('CMRR') and ('BOLD' in series_desc or '_SE' in series_desc), inversion_time is None, 30 < flip_angle < 100, 'EP' in scanning_sequence],
-            'Diff': [series_desc.startswith('CMRR') and 'DIFF' in series_desc, inversion_time is None, 30 < flip_angle < 100, 'EP' in scanning_sequence],
-            'Pcasl': [series_desc.startswith('TGSE'), inversion_time is None, flip_angle > 100, 'EP' in scanning_sequence]
-        }
-        
-        best_score, best_type = 0, 'unclassified'
-        for scan_type, checks in criteria.items():
-            score = sum(checks)
-            if score >= 3 and score > best_score:
-                best_score, best_type = score, scan_type
-        return best_type
-    except Exception as e:
-        print(f"Classification error: {e}")
-        return 'unclassified'
-
-@app.route('/classify_folder', methods=['POST'])
-def classify_folder():
-    folder_path = request.json.get('folder_path')
-    try:
-        output_path = os.path.join(folder_path, 'output')
-        if not os.path.exists(output_path):
-            return jsonify({"status": "error", "message": "Output folder not found"}), 400
-        
-        classification_folders = {k: os.path.join(folder_path, f'{k}_scans' if k != 'unclassified' else k) 
-                                 for k in ['T1', 'T2', 'Diff', 'Bold', 'Pcasl', 'unclassified']}
-        
-        for folder in classification_folders.values():
-            os.makedirs(folder, exist_ok=True)
-        
-        counts = {k: 0 for k in classification_folders.keys()}
-        
-        for json_file in [f for f in os.listdir(output_path) if f.endswith('.json')]:
-            json_path = os.path.join(output_path, json_file)
-            base_name = json_file.replace('.json', '')
-            related_files = [f for f in os.listdir(output_path) 
-                           if f.startswith(base_name) and f != json_file and f.split('.')[0] == base_name]
-            
-            if not related_files:
-                continue
-            
-            try:
-                with open(json_path, 'r') as f:
-                    json_data = json.load(f)
-                scan_type = classify_scan_type(json_data)
-            except:
-                scan_type = 'unclassified'
-            
-            dest_folder = classification_folders[scan_type]
-            counts[scan_type] += 1
-            
-            try:
-                shutil.copy2(json_path, os.path.join(dest_folder, json_file))
-                for related_file in related_files:
-                    shutil.copy2(os.path.join(output_path, related_file), os.path.join(dest_folder, related_file))
-            except Exception as e:
-                print(f"Error copying files: {e}")
-        
-        summary = [{"folder": f"{k}_scans" if k != 'unclassified' else k, "count": v} for k, v in counts.items()]
-        return jsonify({"status": "success", "message": f"Classification completed! Processed {sum(counts.values())} files.", "summary": summary})
+        return send_file(zip_filename, as_attachment=True, download_name=zip_filename)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -248,28 +299,35 @@ def classify_folder():
 def get_public_datasets():
     try:
         folders = []
-        classification_folders = get_classification_folders()
-        
         for item in os.listdir('.'):
-            if os.path.isdir(item) and item.startswith('temp_'):
-                output_path = os.path.join(item, 'output')
-                if os.path.exists(output_path):
-                    medical_files = get_medical_files(output_path)
-                    classification_counts = {}
+            if item.startswith('temp_') and os.path.isdir(item):
+                bids_path = os.path.join(item, 'bids_output', 'sub-01')
+                if os.path.exists(bids_path):
+                    classifications = {}
+                    for datatype in ['anat', 'func', 'dwi', 'perf']:
+                        dt_path = os.path.join(bids_path, datatype)
+                        if os.path.exists(dt_path):
+                            count = len([f for f in os.listdir(dt_path) if f.endswith(('.nii', '.nii.gz'))])
+                            if count > 0:
+                                classifications[datatype] = count
                     
-                    for cf in classification_folders:
-                        cf_path = os.path.join(item, cf)
-                        classification_counts[cf] = len(get_medical_files(cf_path)) if os.path.exists(cf_path) else 0
+                    unclass_path = os.path.join(item, 'unclassified')
+                    if os.path.exists(unclass_path):
+                        unclass_count = len([f for f in os.listdir(unclass_path) if f.endswith(('.nii', '.nii.gz'))])
+                        if unclass_count > 0:
+                            classifications['unclassified'] = unclass_count
                     
+                    total_files = sum(classifications.values())
                     folders.append({
-                        'id': item, 'name': f"Dataset {item.replace('temp_', '')}", 'total_files': len(medical_files),
-                        'upload_date': os.path.getctime(item), 'classifications': classification_counts,
-                        'has_classification': any(count > 0 for count in classification_counts.values()),
-                        'description': f"Medical imaging dataset with {len(medical_files)} files"
+                        'id': item,
+                        'name': f"Dataset {item.replace('temp_', '')}",
+                        'total_files': total_files,
+                        'upload_date': os.path.getctime(item),
+                        'classifications': classifications,
+                        'description': f"Medical imaging dataset with {total_files} files"
                     })
         
-        folders.sort(key=lambda x: x['upload_date'], reverse=True)
-        return jsonify({"status": "success", "datasets": folders})
+        return jsonify({"status": "success", "datasets": sorted(folders, key=lambda x: x['upload_date'], reverse=True)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
