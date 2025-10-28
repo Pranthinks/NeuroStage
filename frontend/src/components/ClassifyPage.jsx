@@ -1,382 +1,409 @@
 import React, { useState, useEffect } from 'react';
 
-const ClassifyPage = ({ setCurrentPage, logout }) => {
+const ClassifyPage = ({ setCurrentPage }) => {
   const [folders, setFolders] = useState([]);
-  const [viewingFolder, setViewingFolder] = useState(null);
+  const [selectedFolder, setSelectedFolder] = useState(null);
   const [classifiedFiles, setClassifiedFiles] = useState(null);
-  const [loadingFiles, setLoadingFiles] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  
-  useEffect(() => { loadFolders(); }, []);
+  const [loading, setLoading] = useState(true);
+  const [mriqcStatus, setMriqcStatus] = useState(null);
+  const [processingMriqc, setProcessingMriqc] = useState(false);
 
-  const getUserName = () => localStorage.getItem('userName') || 'User';
-  
-  const loadFolders = async () => {
+  useEffect(() => {
+    fetchFolders();
+  }, []);
+
+  useEffect(() => {
+    if (selectedFolder) {
+      fetchClassifiedFiles(selectedFolder);
+      fetchMriqcStatus(selectedFolder);
+      
+      // Poll for MRIQC status updates every 10 seconds
+      const interval = setInterval(() => {
+        fetchMriqcStatus(selectedFolder);
+      }, 10000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [selectedFolder]);
+
+  const fetchFolders = async () => {
     try {
       const response = await fetch('/get_folders');
       const data = await response.json();
-      if (data.status === 'success') setFolders(data.folders);
+      if (data.status === 'success') {
+        setFolders(data.folders);
+        if (data.folders.length > 0) {
+          setSelectedFolder(data.folders[0].name);
+        }
+      }
     } catch (error) {
-      console.error('Error loading folders:', error);
+      console.error('Error fetching folders:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const viewClassifiedFiles = async (folderName) => {
-    setLoadingFiles(true);
-    setViewingFolder(folderName);
-    
+  const fetchClassifiedFiles = async (folderName) => {
     try {
       const response = await fetch(`/get_classified_files/${folderName}`);
       const data = await response.json();
-      
       if (data.status === 'success') {
         setClassifiedFiles(data.classified_files);
-      } else {
-        alert(`Error: ${data.message}`);
-        setViewingFolder(null);
       }
     } catch (error) {
-      alert(`Network error: ${error.message}`);
-      setViewingFolder(null);
-    } finally {
-      setLoadingFiles(false);
+      console.error('Error fetching classified files:', error);
     }
   };
 
-  const downloadFile = (folderName, classification, filename) => 
-    window.open(`/download_file/${folderName}/${classification}/${filename}`, '_blank');
+  const fetchMriqcStatus = async (folderName) => {
+    try {
+      const response = await fetch(`/api/mriqc_status/${folderName}`);
+      const data = await response.json();
+      setMriqcStatus(data);
+    } catch (error) {
+      console.error('Error fetching MRIQC status:', error);
+    }
+  };
 
-  const downloadClassification = (folderName, classification) => 
-    window.open(`/download_classification/${folderName}/${classification}`, '_blank');
+  const runMriqc = async () => {
+    if (!selectedFolder) return;
+    
+    setProcessingMriqc(true);
+    
+    try {
+      const response = await fetch('/api/run_mriqc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          folder_name: selectedFolder,
+          subject_id: '01'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        alert('MRIQC quality control started! This will take 30-60 minutes. The page will update automatically when complete.');
+        // Immediately update status to running
+        setMriqcStatus({ status: 'running', reports: [] });
+      } else {
+        alert(`Error: ${data.message}`);
+      }
+    } catch (error) {
+      console.error('Error running MRIQC:', error);
+      alert('Failed to start MRIQC processing');
+    } finally {
+      setProcessingMriqc(false);
+    }
+  };
+
+  const viewMriqcReport = (report) => {
+    window.open(report.path, '_blank');
+  };
+
+  const getMriqcStatusBadge = (status) => {
+    const badges = {
+      'not_started': { text: 'Quality Control Not Started', color: '#6b7280', bg: '#f3f4f6', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+      'running': { text: 'Quality Control Running...', color: '#f59e0b', bg: '#fef3c7', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
+      'completed': { text: 'Quality Control Complete', color: '#10b981', bg: '#d1fae5', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
+    };
+    return badges[status] || badges['not_started'];
+  };
+
+  const getClassificationLabel = (key) => {
+    const labels = {
+      'anat': 'Anatomical (T1w/T2w)',
+      'func': 'Functional (BOLD)',
+      'dwi': 'Diffusion (DWI)',
+      'perf': 'Perfusion (ASL)',
+      'unclassified': 'Unclassified'
+    };
+    return labels[key] || key;
+  };
+
+  const getClassificationColor = (key) => {
+    const colors = {
+      'anat': '#3b82f6',
+      'func': '#fb923c',
+      'dwi': '#8b5cf6',
+      'perf': '#ef4444',
+      'unclassified': '#6b7280'
+    };
+    return colors[key] || '#6b7280';
+  };
+
+  const downloadFile = (classification, filename) => {
+    window.location.href = `/download_file/${selectedFolder}/${classification}/${filename}`;
+  };
+
+  const downloadClassification = (classification) => {
+    window.location.href = `/download_classification/${selectedFolder}/${classification}`;
+  };
 
   const formatFileSize = (bytes) => {
-    if (!bytes) return '0 Bytes';
-    const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const getClassificationDisplay = (classification) => {
-    const config = {
-      'anat': { name: 'T1 AND T2', color: 'blue' },
-      'func': { name: 'BOLD SEQUENCES', color: 'orange'},
-      'dwi': { name: 'DIFFUSION', color: 'purple'},
-      'perf': { name: 'PCASL SEQUENCES', color: 'red'},
-      'unclassified': { name: 'UNCLASSIFIED', color: 'gray'}
-    };
-    return config[classification] || config['unclassified'];
-  };
-
   const styles = `
-    .container { min-height: 100vh; background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%); font-family: system-ui, -apple-system, sans-serif; }
-    .navbar { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(229, 231, 235, 0.5); position: sticky; top: 0; z-index: 50; }
-    .nav-content { max-width: 1200px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; height: 64px; }
-    .logo { font-size: 1.5rem; font-weight: bold; color: #1e3a8a; }
-    .nav-buttons { display: flex; align-items: center; gap: 1rem; }
-    .nav-links { display: none; gap: 0.25rem; align-items: center; }
-    @media (min-width: 768px) { .nav-links { display: flex; } }
-    .nav-link { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none; background: none; }
-    .nav-link.active { color: #2563eb; background: #eff6ff; }
-    .nav-link:not(.active) { color: #6b7280; }
-    .nav-link:not(.active):hover { color: #2563eb; background: #f9fafb; }
-    .back-btn { display: flex; align-items: center; gap: 0.5rem; color: #6b7280; background: none; border: none; cursor: pointer; transition: color 0.2s; }
-    .back-btn:hover { color: #2563eb; }
-    .profile-container { position: relative; }
-    .profile-btn { display: flex; align-items: center; gap: 0.5rem; background: #2563eb; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 500; transition: background 0.2s; }
-    .profile-btn:hover { background: #1d4ed8; }
-    .avatar { width: 32px; height: 32px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600; }
-    .profile-menu { position: absolute; top: 100%; right: 0; background: white; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15); border: 1px solid #e2e8f0; min-width: 200px; margin-top: 8px; padding: 8px; z-index: 100; }
-    .menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; color: #374151; transition: all 0.2s; border-radius: 8px; font-weight: 500; }
-    .menu-item:hover { background: #f8fafc; }
-    .menu-item.active { color: #2563eb; background: #eff6ff; }
-    .menu-item.logout { color: #dc2626; }
-    .menu-item.logout:hover { background: #fef2f2; }
-    .menu-divider { height: 1px; background: #e5e7eb; margin: 8px 0; }
-    .sm-hidden { display: block; }
-    @media (min-width: 640px) { .sm-hidden { display: none; } }
-    .mobile-only { display: block; }
-    @media (min-width: 768px) { .mobile-only { display: none; } }
-    .main-content { max-width: 1200px; margin: 0 auto; padding: 3rem 1rem; }
-    .header { text-align: center; margin-bottom: 3rem; }
-    .header h1 { font-size: 2.5rem; font-weight: bold; color: #111827; margin-bottom: 1rem; }
-    .header p { font-size: 1.25rem; color: #6b7280; }
-    .card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; }
-    .card-header { padding: 2rem; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-    .card-title { font-size: 1.5rem; font-weight: bold; color: #111827; }
-    .btn { display: flex; align-items: center; gap: 0.5rem; border: none; padding: 0.75rem 1rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-success { background: #10b981; color: white; }
-    .btn-success:hover { background: #059669; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, 0.3); border-top: 2px solid #ffffff; border-radius: 50%; animation: spin 1s linear infinite; }
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    .card-content { padding: 2rem; }
-    .empty-state { text-align: center; padding: 3rem 0; }
-    .empty-icon { width: 64px; height: 64px; color: #d1d5db; margin: 0 auto 1rem; }
-    .folder-list { display: flex; flex-direction: column; gap: 1rem; }
-    .folder-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.5rem; transition: all 0.3s; }
-    .folder-item:hover { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border-color: #c7d2fe; }
-    .folder-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-    .folder-info { flex: 1; }
-    .folder-name { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-    .folder-title { font-size: 1.125rem; font-weight: 600; color: #111827; }
+    .classify-container { min-height: 100vh; background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%); font-family: system-ui, -apple-system, sans-serif; padding: 2rem; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .header h1 { font-size: 2rem; font-weight: bold; color: #111827; }
+    .back-btn { background: #6b7280; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+    .back-btn:hover { background: #4b5563; }
+    .content-grid { display: grid; grid-template-columns: 300px 1fr; gap: 2rem; }
+    .sidebar { background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); height: fit-content; }
+    .sidebar h2 { font-size: 1.25rem; font-weight: 600; color: #111827; margin-bottom: 1rem; }
+    .folder-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .folder-item { padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; transition: background 0.2s; border: 1px solid transparent; }
+    .folder-item:hover { background: #f9fafb; }
+    .folder-item.active { background: #eff6ff; border-color: #3b82f6; }
+    .folder-name { font-weight: 500; color: #111827; margin-bottom: 0.25rem; }
     .folder-meta { font-size: 0.875rem; color: #6b7280; }
-    .folder-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-    .classification-section { margin-bottom: 1.5rem; border-radius: 1rem; overflow: hidden; }
-    .classification-header { padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-    .classification-header.blue { background: #eff6ff; color: #1e40af; border-left: 4px solid #3b82f6; }
-    .classification-header.green { background: #f0fdf4; color: #065f46; border-left: 4px solid #10b981; }
-    .classification-header.purple { background: #faf5ff; color: #6b21a8; border-left: 4px solid #8b5cf6; }
-    .classification-header.orange { background: #fff7ed; color: #c2410c; border-left: 4px solid #fb923c; }
-    .classification-header.red { background: #fef2f2; color: #991b1b; border-left: 4px solid #ef4444; }
-    .classification-header.gray { background: #f9fafb; color: #374151; border-left: 4px solid #6b7280; }
-    .classification-info { display: flex; align-items: center; gap: 0.75rem; }
-    .classification-icon { font-size: 1.5rem; }
-    .classification-name { font-size: 1.125rem; font-weight: 600; }
-    .classification-count { font-size: 0.875rem; opacity: 0.8; }
-    .download-all-btn { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); color: inherit; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.875rem; transition: background 0.2s; }
-    .download-all-btn:hover { background: rgba(255, 255, 255, 0.3); }
-    .file-list { background: white; }
-    .file-item { padding: 1rem 1.5rem; border-bottom: 1px solid #f3f4f6; transition: background 0.2s; }
-    .file-item:hover { background: #f9fafb; }
-    .file-item:last-child { border-bottom: none; }
-    .file-content { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .main-content { display: flex; flex-direction: column; gap: 1.5rem; }
+    .mriqc-card { background: white; border-radius: 1rem; padding: 2rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .mriqc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .mriqc-title { font-size: 1.5rem; font-weight: 600; color: #111827; display: flex; align-items: center; gap: 0.5rem; }
+    .mriqc-status-section { display: flex; gap: 1.5rem; align-items: flex-start; }
+    .status-badge { flex: 1; display: flex; align-items: center; gap: 1rem; padding: 1.5rem; border-radius: 0.75rem; }
+    .status-icon { width: 48px; height: 48px; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; }
+    .status-info h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .status-info p { font-size: 0.875rem; opacity: 0.8; }
+    .mriqc-action { flex: 0 0 auto; }
+    .mriqc-btn { background: #10b981; color: white; border: none; padding: 1rem 1.5rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+    .mriqc-btn:hover { background: #059669; }
+    .mriqc-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .processing-info { flex: 1; text-align: center; padding: 2rem; }
+    .processing-spinner { width: 48px; height: 48px; border: 4px solid #f3f4f6; border-top: 4px solid #f59e0b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+    .processing-text { color: #6b7280; font-size: 0.875rem; }
+    .processing-estimate { color: #9ca3af; font-size: 0.75rem; margin-top: 0.5rem; }
+    .reports-section { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb; }
+    .reports-title { font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem; }
+    .reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+    .report-card { background: #f9fafb; border-radius: 0.5rem; padding: 1rem; cursor: pointer; transition: all 0.2s; border: 1px solid #e5e7eb; }
+    .report-card:hover { background: #f3f4f6; border-color: #3b82f6; }
+    .report-name { font-weight: 500; color: #111827; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+    .report-type { font-size: 0.75rem; color: #6b7280; }
+    .classification-card { background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .classification-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .classification-title { font-size: 1.25rem; font-weight: 600; color: #111827; }
+    .download-btn { background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.875rem; font-weight: 500; transition: background 0.2s; }
+    .download-btn:hover { background: #2563eb; }
+    .file-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .file-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem; }
     .file-info { flex: 1; }
-    .file-name { font-weight: 500; color: #111827; margin-bottom: 0.5rem; }
-    .file-meta { font-size: 0.875rem; color: #6b7280; }
+    .file-name { font-weight: 500; color: #111827; margin-bottom: 0.25rem; }
+    .file-meta { font-size: 0.75rem; color: #6b7280; }
     .file-actions { display: flex; gap: 0.5rem; }
-    .download-btn { padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.2s; border: none; }
-    .download-main { background: #2563eb; color: white; }
-    .download-main:hover { background: #1d4ed8; }
-    .download-json { background: #10b981; color: white; }
-    .download-json:hover { background: #059669; }
+    .file-download-btn { background: #6b7280; color: white; border: none; padding: 0.375rem 0.75rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.75rem; transition: background 0.2s; }
+    .file-download-btn:hover { background: #4b5563; }
+    .empty-state { text-align: center; padding: 3rem; color: #6b7280; }
+    .loading-state { text-align: center; padding: 3rem; }
   `;
 
-  const Icon = ({ d }) => (
-    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} />
-    </svg>
-  );
-
-  // File viewer
-  if (viewingFolder && classifiedFiles) {
+  if (loading) {
     return (
-      <div className="container">
+      <div className="classify-container">
         <style>{styles}</style>
-        
-        <nav className="navbar">
-          <div className="nav-content">
-            <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-              <button className="back-btn" onClick={() => setViewingFolder(null)}>
-                <Icon d="M15 19l-7-7 7-7" />
-                Back to Folders
-              </button>
-              <div className="logo">MedScan Pro</div>
-            </div>
-            
-            <div className="profile-container">
-              <button className="profile-btn" onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <div className="avatar">{getUserName().charAt(0).toUpperCase()}</div>
-                <span className="sm-hidden">{getUserName()}</span>
-                <Icon d="M19 9l-7 7-7-7" />
-              </button>
-              {showProfileMenu && (
-                <div className="profile-menu">
-                  <button className="menu-item" onClick={() => { setCurrentPage('home'); setShowProfileMenu(false); }}>
-                    <Icon d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                    My Dashboard
-                  </button>
-                  <button className="menu-item active" onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}>
-                    <Icon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    View Files
-                  </button>
-                  <div className="menu-divider" />
-                  <button className="menu-item logout" onClick={() => { logout(); setShowProfileMenu(false); }}>
-                    <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </nav>
-
-        <div className="main-content">
-          <div className="header">
-            <h1>{viewingFolder}</h1>
-            <p>BIDS Classified Files</p>
-          </div>
-          
-          {Object.entries(classifiedFiles).map(([classification, files]) => {
-            const display = getClassificationDisplay(classification);
-            return (
-              <div key={classification} className="classification-section">
-                <div className="card">
-                  <div className={`classification-header ${display.color}`}>
-                    <div className="classification-info">
-                      <span className="classification-icon">{display.icon}</span>
-                      <div>
-                        <div className="classification-name">{display.name}</div>
-                        <div className="classification-count">{files.length} files</div>
-                      </div>
-                    </div>
-                    {files.length > 0 && (
-                      <button className="download-all-btn" onClick={() => downloadClassification(viewingFolder, classification)}>
-                        Download All
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="file-list">
-                    {files.length === 0 ? (
-                      <div className="empty-state">
-                        <p>No files in this category</p>
-                      </div>
-                    ) : (
-                      files.map((file, index) => (
-                        <div key={index} className="file-item">
-                          <div className="file-content">
-                            <div className="file-info">
-                              <div className="file-name">{file.base_name}</div>
-                              <div className="file-meta">
-                                Size: {formatFileSize(file.file_size)} • Modified: {new Date(file.modified * 1000).toLocaleDateString()}
-                                {file.json_file && ' • Has JSON'}
-                              </div>
-                            </div>
-                            <div className="file-actions">
-                              <button className="download-btn download-main" onClick={() => downloadFile(viewingFolder, classification, file.main_file)}>
-                                Main
-                              </button>
-                              {file.json_file && (
-                                <button className="download-btn download-json" onClick={() => downloadFile(viewingFolder, classification, file.json_file)}>
-                                  JSON
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="loading-state">
+          <div className="processing-spinner"></div>
+          <p>Loading datasets...</p>
         </div>
       </div>
     );
   }
 
-  // Main page
   return (
-    <div className="container">
+    <div className="classify-container">
       <style>{styles}</style>
       
-      <nav className="navbar">
-        <div className="nav-content">
-          <div className="logo">MedScan Pro</div>
-          
-          <div className="nav-buttons">
-            <div className="nav-links">
-              <button className="nav-link" onClick={() => setCurrentPage('home')}>Dashboard</button>
-              <button className="nav-link active" onClick={() => setCurrentPage('classify')}>View Files</button>
-              <button className="nav-link" onClick={() => setCurrentPage('main')}>Browse Data</button>
-            </div>
-            
-            <div className="profile-container">
-              <button className="profile-btn" onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <div className="avatar">{getUserName().charAt(0).toUpperCase()}</div>
-                <span className="sm-hidden">{getUserName()}</span>
-                <Icon d="M19 9l-7 7-7-7" />
-              </button>
-              {showProfileMenu && (
-                <div className="profile-menu">
-                  <button className="menu-item" onClick={() => { setCurrentPage('home'); setShowProfileMenu(false); }}>
-                    <Icon d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                    My Dashboard
-                  </button>
-                  <button className="menu-item active" onClick={() => { setCurrentPage('classify'); setShowProfileMenu(false); }}>
-                    <Icon d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    View Files
-                  </button>
-                  <button className="menu-item mobile-only" onClick={() => { setCurrentPage('main'); setShowProfileMenu(false); }}>
-                    <Icon d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
-                    Browse Public Data
-                  </button>
-                  <div className="menu-divider" />
-                  <button className="menu-item logout" onClick={() => { logout(); setShowProfileMenu(false); }}>
-                    <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
+      <div className="header">
+        <h1>Dataset Classification & Quality Control</h1>
+        <button className="back-btn" onClick={() => setCurrentPage('home')}>
+          ← Back to Home
+        </button>
+      </div>
 
-      <div className="main-content">
-        <div className="header">
-          <h1>Classified BIDS Files</h1>
-          <p>View your organized medical imaging files</p>
+      {folders.length === 0 ? (
+        <div className="empty-state">
+          <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{margin: '0 auto 1rem'}}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m7-8v2m0 0V5h2m-2 2h2" />
+          </svg>
+          <h3 style={{fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem'}}>No datasets found</h3>
+          <p>Upload DICOM files to get started</p>
         </div>
-        
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title">Available Datasets</h2>
-            <button className="btn btn-primary" onClick={loadFolders}>
-              <Icon d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              Refresh
-            </button>
+      ) : (
+        <div className="content-grid">
+          <div className="sidebar">
+            <h2>Your Datasets</h2>
+            <div className="folder-list">
+              {folders.map(folder => (
+                <div 
+                  key={folder.name}
+                  className={`folder-item ${selectedFolder === folder.name ? 'active' : ''}`}
+                  onClick={() => setSelectedFolder(folder.name)}
+                >
+                  <div className="folder-name">{folder.name}</div>
+                  <div className="folder-meta">
+                    {folder.file_count} files • {new Date(folder.created * 1000).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          
-          <div className="card-content">
-            {folders.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📁</div>
-                <h3>No datasets found</h3>
-                <p>Convert some DICOM files first to get started</p>
-                <button className="btn btn-primary" onClick={() => setCurrentPage('home')}>
-                  Go to Converter
-                </button>
+
+          <div className="main-content">
+            {/* MRIQC Quality Control Section */}
+            <div className="mriqc-card">
+              <div className="mriqc-header">
+                <div className="mriqc-title">
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  MRIQC Quality Control
+                </div>
               </div>
-            ) : (
-              <div className="folder-list">
-                {folders.map(folder => (
-                  <div key={folder.name} className="folder-item">
-                    <div className="folder-header">
-                      <div className="folder-info">
-                        <div className="folder-name">
-                          <span className="folder-title">{folder.name}</span>
+
+              {mriqcStatus && (
+                <>
+                  <div className="mriqc-status-section">
+                    {mriqcStatus.status !== 'running' && (
+                      <>
+                        <div className="status-badge" style={{
+                          background: getMriqcStatusBadge(mriqcStatus.status).bg,
+                          color: getMriqcStatusBadge(mriqcStatus.status).color
+                        }}>
+                          <div className="status-icon" style={{
+                            background: getMriqcStatusBadge(mriqcStatus.status).color + '33'
+                          }}>
+                            <svg width="24" height="24" fill="none" stroke={getMriqcStatusBadge(mriqcStatus.status).color} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={getMriqcStatusBadge(mriqcStatus.status).icon} />
+                            </svg>
+                          </div>
+                          <div className="status-info">
+                            <h3>{getMriqcStatusBadge(mriqcStatus.status).text}</h3>
+                            <p>
+                              {mriqcStatus.status === 'not_started' && 'Run quality control to assess image quality'}
+                              {mriqcStatus.status === 'completed' && `${mriqcStatus.reports.length} report(s) available`}
+                            </p>
+                          </div>
                         </div>
-                        <div className="folder-meta">
-                          {folder.file_count} files • Created: {new Date(folder.created * 1000).toLocaleDateString()}
-                        </div>
+                        
+                        {mriqcStatus.status === 'not_started' && (
+                          <div className="mriqc-action">
+                            <button 
+                              className="mriqc-btn"
+                              onClick={runMriqc}
+                              disabled={processingMriqc}
+                            >
+                              {processingMriqc ? (
+                                <>
+                                  <div className="spinner"></div>
+                                  Starting...
+                                </>
+                              ) : (
+                                <>
+                                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Run Quality Control
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    
+                    {mriqcStatus.status === 'running' && (
+                      <div className="processing-info">
+                        <div className="processing-spinner"></div>
+                        <div className="processing-text">Processing quality metrics...</div>
+                        <div className="processing-estimate">Estimated time: 30-60 minutes</div>
+                        <p style={{fontSize: '0.75rem', color: '#9ca3af', marginTop: '1rem'}}>
+                          The page will automatically update when complete
+                        </p>
                       </div>
-                      
-                      <div className="folder-actions">
-                        <button 
-                          className="btn btn-success" 
-                          onClick={() => viewClassifiedFiles(folder.name)} 
-                          disabled={loadingFiles && viewingFolder === folder.name}
-                        >
-                          {loadingFiles && viewingFolder === folder.name ? (
-                            <div className="spinner"></div>
-                          ) : (
-                            <Icon d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          )}
-                          View Files
-                        </button>
+                    )}
+                  </div>
+
+                  {mriqcStatus.status === 'completed' && mriqcStatus.reports.length > 0 && (
+                    <div className="reports-section">
+                      <div className="reports-title">Quality Reports</div>
+                      <div className="reports-grid">
+                        {mriqcStatus.reports.map((report, idx) => (
+                          <div 
+                            key={idx}
+                            className="report-card"
+                            onClick={() => viewMriqcReport(report)}
+                          >
+                            <div className="report-name">
+                              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              {report.name}
+                            </div>
+                            <div className="report-type">Click to view report</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Classification Files Section */}
+            {classifiedFiles && Object.entries(classifiedFiles).map(([classification, files]) => (
+              files.length > 0 && (
+                <div key={classification} className="classification-card">
+                  <div className="classification-header">
+                    <div className="classification-title" style={{color: getClassificationColor(classification)}}>
+                      {getClassificationLabel(classification)} ({files.length})
+                    </div>
+                    <button 
+                      className="download-btn"
+                      onClick={() => downloadClassification(classification)}
+                    >
+                      Download All
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
+                  
+                  <div className="file-list">
+                    {files.map((file, idx) => (
+                      <div key={idx} className="file-item">
+                        <div className="file-info">
+                          <div className="file-name">{file.main_file}</div>
+                          <div className="file-meta">
+                            {formatFileSize(file.file_size)}
+                            {file.json_file && ' • JSON metadata included'}
+                          </div>
+                        </div>
+                        <div className="file-actions">
+                          <button 
+                            className="file-download-btn"
+                            onClick={() => downloadFile(classification, file.main_file)}
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

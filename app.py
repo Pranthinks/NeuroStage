@@ -1,6 +1,9 @@
 from flask import Flask, request, send_file, jsonify
 import os, zipfile, subprocess, uuid, shutil, json
 import pydicom
+import docker
+from flask import send_from_directory
+from pathlib import Path
 
 app = Flask(__name__)
 USERS_FILE = 'users.json'
@@ -52,6 +55,7 @@ DCM2BIDS_CONFIG = {
         {
   "datatype": "func",
   "suffix": "bold",
+  "custom_entities": "task-rest",
   "criteria": {
     "SeriesDescription": {
       "any": ["*bold*","*_se*", "*BOLD*", "*Bold*",
@@ -66,6 +70,9 @@ DCM2BIDS_CONFIG = {
       "btwe": ["30", "100"]
     },
     "ScanningSequence": "*EP*"
+  },
+  "sidecar_changes": {
+    "TaskName": "rest"
   }
 },
         {
@@ -94,6 +101,7 @@ DCM2BIDS_CONFIG = {
        {
   "datatype": "perf",
   "suffix": "asl",
+  "custom_entities": "task-rest",
   "criteria": {
     "SeriesDescription": {
       "any": ["*pcasl*", "*PCASL*", "*Perfusion*", "*asl*", "*ASL*", "*Asl*",
@@ -141,6 +149,41 @@ def consolidate_dicom_files(source_dir, target_dir):
                 shutil.copy2(filepath, os.path.join(target_subdir, filename))
                 dicom_count += 1
     return dicom_count
+
+def ensure_bids_valid(bids_dir):
+    """Ensure BIDS directory has required dataset_description.json"""
+    desc_file = os.path.join(bids_dir, "dataset_description.json")
+    
+    if not os.path.exists(desc_file):
+        description = {
+            "Name": "Medical Imaging Dataset",
+            "BIDSVersion": "1.6.0",
+            "DatasetType": "raw",
+            "GeneratedBy": [
+                {
+                    "Name": "dcm2bids",
+                    "Description": "DICOM to BIDS converter"
+                }
+            ]
+        }
+        
+        with open(desc_file, 'w') as f:
+            json.dump(description, f, indent=2)
+    
+    return True
+
+
+@app.route('/api/mriqc_report/<session_id>/<path:filename>')
+def serve_mriqc_report(session_id, filename):
+    """Serve MRIQC report files (HTML, SVG, etc.)"""
+    try:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        mriqc_path = os.path.join(base_path, session_id, 'mriqc_output')
+        return send_from_directory(mriqc_path, filename)
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+
+
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -199,6 +242,9 @@ def upload():
         subprocess.run(["dcm2bids", "-d", paths['dicom'], "-p", "sub-01", 
                        "-c", paths['config'], "-o", paths['bids']], check=True)
         
+        # Ensure BIDS is valid
+        ensure_bids_valid(paths['bids'])
+        
         tmp_path = os.path.join(paths['bids'], "tmp_dcm2bids", "sub-01")
         if os.path.exists(tmp_path):
             for item in os.listdir(tmp_path):
@@ -223,16 +269,181 @@ def get_folders():
         for item in os.listdir('.'):
             if item.startswith('temp_') and os.path.isdir(item):
                 bids_path = os.path.join(item, 'bids_output')
+                mriqc_path = os.path.join(item, 'mriqc_output')
+                
                 if os.path.exists(bids_path):
+                    # Check MRIQC status
+                    mriqc_status = 'not_started'
+                    mriqc_reports = []
+                    
+                    if os.path.exists(mriqc_path):
+                        html_files = [f for f in os.listdir(mriqc_path) if f.endswith('.html')]
+                        if html_files:
+                            mriqc_status = 'completed'
+                            mriqc_reports = html_files
+                        else:
+                            # Check for running indicator
+                            running_file = os.path.join(mriqc_path, '.mriqc_running')
+                            if os.path.exists(running_file):
+                                mriqc_status = 'running'
+                    
                     folders.append({
                         'name': item,
                         'file_count': sum(len(files) for _, _, files in os.walk(bids_path)),
                         'created': os.path.getctime(item),
-                        'has_classification': True
+                        'has_classification': True,
+                        'mriqc_status': mriqc_status,
+                        'mriqc_reports': mriqc_reports
                     })
         return jsonify({"status": "success", "folders": sorted(folders, key=lambda x: x['created'], reverse=True)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/run_mriqc', methods=['POST'])
+def run_mriqc():
+    """Run MRIQC quality control on BIDS data"""
+    data = request.get_json()
+    folder_name = data.get('folder_name')
+    subject_id = data.get('subject_id', '01')
+    
+    print(f"MRIQC REQUEST: folder={folder_name}, subject={subject_id}")
+    
+    if not folder_name:
+        return jsonify({'status': 'error', 'message': 'Folder name required'}), 400
+    
+    bids_dir = os.path.join(folder_name, 'bids_output')
+    mriqc_dir = os.path.join(folder_name, 'mriqc_output')
+    work_dir = os.path.join(folder_name, 'mriqc_work')
+    
+    if not os.path.exists(bids_dir):
+        return jsonify({'status': 'error', 'message': 'BIDS directory not found'}), 404
+    
+    # Check dataset_description.json
+    desc_file = os.path.join(bids_dir, 'dataset_description.json')
+    if not os.path.exists(desc_file):
+        print("Creating dataset_description.json")
+        ensure_bids_valid(bids_dir)
+    
+    try:
+        os.makedirs(mriqc_dir, exist_ok=True)
+        os.makedirs(work_dir, exist_ok=True)
+        
+        running_file = os.path.join(mriqc_dir, '.mriqc_running')
+        with open(running_file, 'w') as f:
+            f.write('running')
+        
+        # Remove old container if exists
+        try:
+            docker_client = docker.from_env()
+            old = docker_client.containers.get(f'mriqc_{folder_name}')
+            old.remove(force=True)
+            print(f"Removed old container")
+        except:
+            pass
+        
+        docker_client = docker.from_env()
+        mriqc_image = "nipreps/mriqc:latest"
+        
+        try:
+            docker_client.images.get(mriqc_image)
+        except docker.errors.ImageNotFound:
+            docker_client.images.pull(mriqc_image)
+        
+        bids_abs = os.path.abspath(bids_dir)
+        output_abs = os.path.abspath(mriqc_dir)
+        work_abs = os.path.abspath(work_dir)
+        
+        print(f"Starting MRIQC container...")
+        print(f"  BIDS: {bids_abs}")
+        print(f"  Output: {output_abs}")
+        
+        container = docker_client.containers.run(
+            image=mriqc_image,
+            command=[
+                "/data", "/out", "participant",
+                "--participant-label", subject_id,
+                "-w", "/work",
+                "--no-sub"
+            ],
+            volumes={
+                bids_abs: {'bind': '/data', 'mode': 'ro'},
+                output_abs: {'bind': '/out', 'mode': 'rw'},
+                work_abs: {'bind': '/work', 'mode': 'rw'}
+            },
+            user=f'{os.getuid()}:{os.getgid()}',
+            name=f'mriqc_{folder_name}',
+            remove=False,
+            detach=True
+        )
+        
+        print(f"✓ Container started: {container.id[:12]}")
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'MRIQC processing started',
+            'container_id': container.id[:12]
+        })
+        
+    except Exception as e:
+        print(f"ERROR: {e}")
+        if os.path.exists(running_file):
+            os.remove(running_file)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/mriqc_status/<folder_name>', methods=['GET'])
+def get_mriqc_status(folder_name):
+    """Get MRIQC processing status for a folder"""
+    mriqc_dir = os.path.join(folder_name, 'mriqc_output')
+    
+    if not os.path.exists(mriqc_dir):
+        return jsonify({'status': 'not_started', 'reports': []})
+    
+    # Check if container is running
+    try:
+        docker_client = docker.from_env()
+        try:
+            container = docker_client.containers.get(f'mriqc_{folder_name}')
+            if container.status == 'running':
+                return jsonify({'status': 'running', 'reports': []})
+            else:
+                # Container stopped, remove running file
+                running_file = os.path.join(mriqc_dir, '.mriqc_running')
+                if os.path.exists(running_file):
+                    os.remove(running_file)
+        except:
+            pass
+    except:
+        pass
+    
+    # Check for running indicator
+    running_file = os.path.join(mriqc_dir, '.mriqc_running')
+    if os.path.exists(running_file):
+        return jsonify({'status': 'running', 'reports': []})
+    
+    # Check for HTML reports
+    html_files = [f for f in os.listdir(mriqc_dir) if f.endswith('.html')]
+    
+    if html_files:
+        reports = []
+        for report in html_files:
+            reports.append({
+                'filename': report,
+                'name': report.replace('.html', '').replace('_', ' ').title(),
+                'path': f'/api/mriqc_report/{folder_name}/{report}'
+            })
+        return jsonify({'status': 'completed', 'reports': reports})
+    
+    return jsonify({'status': 'not_started', 'reports': []})
+
+@app.route('/api/mriqc_report/<folder_name>/<filename>')
+def get_mriqc_report(folder_name, filename):
+    """Serve MRIQC HTML report"""
+    report_path = os.path.join(folder_name, 'mriqc_output', filename)
+    
+    if not os.path.exists(report_path):
+        return jsonify({'status': 'error', 'message': 'Report not found'}), 404
+    
+    return send_file(report_path)
 
 def get_files_in_dir(dir_path):
     files = []
