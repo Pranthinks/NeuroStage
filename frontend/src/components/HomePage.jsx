@@ -174,7 +174,7 @@ const HomePage = ({ setCurrentPage, logout }) => {
       
       <nav className="navbar">
         <div className="nav-content">
-          <div className="logo">MedScan Pro</div>
+          <div className="logo">NeuroStage</div>
           
           <div className="nav-buttons">
             <div className="nav-links">

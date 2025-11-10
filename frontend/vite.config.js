@@ -14,7 +14,8 @@ export default defineConfig({
       '/classify_folder': 'http://localhost:5000',
       '/get_classified_files': 'http://localhost:5000',
       '/download_file': 'http://localhost:5000',
-      '/download_classification': 'http://localhost:5000'
+      '/download_classification': 'http://localhost:5000',
+      '/view_file': 'http://localhost:5000'
     }
   }
 })

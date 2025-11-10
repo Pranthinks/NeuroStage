@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import NiftiViewer from './NiftiViewer';
 
 const ClassifyPage = ({ setCurrentPage }) => {
   const [folders, setFolders] = useState([]);
@@ -7,6 +8,7 @@ const ClassifyPage = ({ setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
   const [mriqcStatus, setMriqcStatus] = useState(null);
   const [processingMriqc, setProcessingMriqc] = useState(false);
+  const [viewerFile, setViewerFile] = useState(null);
 
   useEffect(() => {
     fetchFolders();
@@ -17,7 +19,6 @@ const ClassifyPage = ({ setCurrentPage }) => {
       fetchClassifiedFiles(selectedFolder);
       fetchMriqcStatus(selectedFolder);
       
-      // Poll for MRIQC status updates every 10 seconds
       const interval = setInterval(() => {
         fetchMriqcStatus(selectedFolder);
       }, 10000);
@@ -86,7 +87,6 @@ const ClassifyPage = ({ setCurrentPage }) => {
       
       if (data.status === 'success') {
         alert('MRIQC quality control started! This will take 30-60 minutes. The page will update automatically when complete.');
-        // Immediately update status to running
         setMriqcStatus({ status: 'running', reports: [] });
       } else {
         alert(`Error: ${data.message}`);
@@ -101,6 +101,18 @@ const ClassifyPage = ({ setCurrentPage }) => {
 
   const viewMriqcReport = (report) => {
     window.open(report.path, '_blank');
+  };
+
+  const viewFile = (classification, filename) => {
+    const fileUrl = `/view_file/${selectedFolder}/${classification}/${filename}`;
+    setViewerFile({
+      url: fileUrl,
+      name: filename
+    });
+  };
+
+  const closeViewer = () => {
+    setViewerFile(null);
   };
 
   const getMriqcStatusBadge = (status) => {
@@ -202,6 +214,8 @@ const ClassifyPage = ({ setCurrentPage }) => {
     .file-name { font-weight: 500; color: #111827; margin-bottom: 0.25rem; }
     .file-meta { font-size: 0.75rem; color: #6b7280; }
     .file-actions { display: flex; gap: 0.5rem; }
+    .file-view-btn { background: #10b981; color: white; border: none; padding: 0.375rem 0.75rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.75rem; transition: background 0.2s; }
+    .file-view-btn:hover { background: #059669; }
     .file-download-btn { background: #6b7280; color: white; border: none; padding: 0.375rem 0.75rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.75rem; transition: background 0.2s; }
     .file-download-btn:hover { background: #4b5563; }
     .empty-state { text-align: center; padding: 3rem; color: #6b7280; }
@@ -223,6 +237,14 @@ const ClassifyPage = ({ setCurrentPage }) => {
   return (
     <div className="classify-container">
       <style>{styles}</style>
+      
+      {viewerFile && (
+        <NiftiViewer 
+          fileUrl={viewerFile.url}
+          fileName={viewerFile.name}
+          onClose={closeViewer}
+        />
+      )}
       
       <div className="header">
         <h1>Dataset Classification & Quality Control</h1>
@@ -388,6 +410,14 @@ const ClassifyPage = ({ setCurrentPage }) => {
                           </div>
                         </div>
                         <div className="file-actions">
+                          {(file.main_file.endsWith('.nii') || file.main_file.endsWith('.nii.gz')) && (
+                            <button 
+                              className="file-view-btn"
+                              onClick={() => viewFile(classification, file.main_file)}
+                            >
+                              👁️ View
+                            </button>
+                          )}
                           <button 
                             className="file-download-btn"
                             onClick={() => downloadFile(classification, file.main_file)}

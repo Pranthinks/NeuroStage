@@ -120,7 +120,7 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
       
       <nav className="navbar">
         <div className="nav-content">
-          <div className="logo">MedScan Pro</div>
+          <div className="logo">NeuroStage</div>
           <div className="nav-buttons">
             {isAuthenticated ? (
               <div className="profile-container">
@@ -160,8 +160,8 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
       <div className="main-content">
         <div className="section hero">
           <div className="container-inner">
-            <h1>Medical Image Processing Platform</h1>
-            <p>Transform your DICOM files into NIfTI format and automatically classify them by scan type. Built for researchers and medical professionals.</p>
+            <h1>Complete Neuroimaging Pipeline Platform</h1>
+            <p>End-to-end solution for neuroimaging research. Convert DICOM to BIDS format, visualize your data, and run preprocessing workflows—all in one platform. Cloud processing or local deployment for sensitive data.</p>
           </div>
         </div>
 
@@ -170,18 +170,18 @@ const MainPage = ({ setCurrentPage, isAuthenticated, logout }) => {
             <div className="features-grid">
               <div className="feature-card">
                 <FeatureIcon color="#dbeafe" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                <h3 className="feature-title">DICOM to NIfTI Conversion</h3>
-                <p className="feature-desc">Seamlessly convert DICOM images to NIfTI format using industry-standard dcm2niix tools. Batch processing support for efficient workflow.</p>
+                <h3 className="feature-title">DICOM to BIDS Conversion</h3>
+                <p className="feature-desc">Automatically convert raw DICOM files to BIDS-compliant format using dcm2niix. Intelligent classification organizes scans into anatomical (T1/T2), functional (BOLD), diffusion (DWI), and perfusion (PCASL) directories.</p>
               </div>
               <div className="feature-card">
                 <FeatureIcon color="#dcfce7" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                <h3 className="feature-title">BIDS-Compliant Classification</h3>
-                <p className="feature-desc">Automatic classification system that organizes scans into BIDS-compliant folders: anatomical, functional, diffusion, and perfusion imaging.</p>
+                <h3 className="feature-title">Interactive Visualization</h3>
+                <p className="feature-desc">View and explore your converted neuroimaging data directly in the browser. Navigate through slices, adjust contrast, and verify data quality before preprocessing.</p>
               </div>
               <div className="feature-card">
                 <FeatureIcon color="#f3e8ff" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                <h3 className="feature-title">Organized Data Management</h3>
-                <p className="feature-desc">Automatic file organization with detailed reporting and easy access to processed data. Keep your research organized and accessible.</p>
+                <h3 className="feature-title">Flexible Preprocessing</h3>
+                <p className="feature-desc">Run fMRIPrep or custom preprocessing scripts on the cloud. For sensitive data, download our Docker image and run preprocessing locally with complete control over your infrastructure.</p>
               </div>
             </div>
           </div>
