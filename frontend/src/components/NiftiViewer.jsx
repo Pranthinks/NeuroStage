@@ -8,7 +8,7 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
   const [error, setError] = useState(null);
   const [activeColormap, setActiveColormap] = useState('gray');
   const [showCrosshair, setShowCrosshair] = useState(true);
-  const [sliceType, setSliceType] = useState('multi');
+  const [sliceType, setSliceType] = useState('axial'); // Changed from 'multi' to 'axial'
   const [opacity, setOpacity] = useState(1);
   const [brightness, setBrightness] = useState(0.5);
   const [contrast, setContrast] = useState(0.5);
@@ -45,7 +45,7 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
             crosshairWidth: 1,
             ruler: true,
             dragMode: nvRef.current?.dragModes?.pan || 1,
-            multiplanarForceRender: true,
+            multiplanarForceRender: false, // Changed to false
             meshThicknessOn2D: 0.5
           });
           
@@ -69,6 +69,9 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
                 opacity: 1
               }
             ]);
+            
+            // Start with axial view (no 3D rendering)
+            nvRef.current.setSliceType(nvRef.current.sliceTypeAxial);
             
             // Get image information
             if (nvRef.current.volumes.length > 0) {
@@ -136,12 +139,6 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
         case 'sagittal':
           nvRef.current.setSliceType(nvRef.current.sliceTypeSagittal);
           break;
-        case 'multi':
-          nvRef.current.setSliceType(nvRef.current.sliceTypeMultiplanar);
-          break;
-        case 'render':
-          nvRef.current.setSliceType(nvRef.current.sliceTypeRender);
-          break;
         default:
           break;
       }
@@ -199,7 +196,7 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
   // Reset view
   const resetView = () => {
     if (nvRef.current) {
-      nvRef.current.setSliceType(nvRef.current.sliceTypeMultiplanar);
+      nvRef.current.setSliceType(nvRef.current.sliceTypeAxial); // Changed from multiplanar to axial
       if (nvRef.current.volumes.length > 0) {
         nvRef.current.volumes[0].opacity = 1;
         nvRef.current.volumes[0].colormap = 'gray';
@@ -212,7 +209,7 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
       setBrightness(0.5);
       setContrast(0.5);
       setActiveColormap('gray');
-      setSliceType('multi');
+      setSliceType('axial'); // Changed from 'multi' to 'axial'
     }
   };
 
@@ -745,18 +742,6 @@ const NiftiViewerAdvanced = ({ fileUrl, fileName, onClose }) => {
                 onClick={() => changeSliceType('sagittal')}
               >
                 Sagittal
-              </button>
-              <button 
-                className={`control-btn ${sliceType === 'multi' ? 'active' : ''}`}
-                onClick={() => changeSliceType('multi')}
-              >
-                Multi-Planar
-              </button>
-              <button 
-                className={`control-btn ${sliceType === 'render' ? 'active' : ''}`}
-                onClick={() => changeSliceType('render')}
-              >
-                3D Render
               </button>
             </div>
 

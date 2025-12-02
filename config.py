@@ -14,7 +14,7 @@ DCM2BIDS_CONFIG = {
           "*GR_IR*", "*FSPGR*", "*fspgr*",
           "*IR-*", "*-IR*",
           "*t1_mpr*", "*mpr_t1*",
-          "*structural*", "*STRUCTURAL*"
+          "*structural*", "*STRUCTURAL*", "*MPR*", "*mpr*"
         ]
     },
     "FlipAngle": {"lt": "20"}
@@ -34,7 +34,7 @@ DCM2BIDS_CONFIG = {
           "*3D*T2*", "*T2*3D*",
           "*t2_spc*", "*spc_t2*",
           "*T2*DRIVE*", "*T2*drive*",
-          "*RESTORE*", "*restore*"]
+          "*RESTORE*", "*restore*", "*MPR*", "*mpr*"]
     },
     "FlipAngle": {
       "gt": "100"
@@ -99,10 +99,10 @@ DCM2BIDS_CONFIG = {
           "*pcasl*", "*PCASL*", "*pCASL*", "*pASL*",
           "*casl*", "*CASL*",
           "*asl_*", "*_asl*",
-          "*perfusion*", "*PERFUSION*"]
+          "*perfusion*", "*PERFUSION*", "*relCBF*", "*RelCBF*", "*RELCBF*", "*rel_cbf*", "*relcbf*"]
     },
     "FlipAngle": {
-      "gt": "100"
+      "gt": "80"
     },
     "ScanningSequence": "*EP*"
   }
