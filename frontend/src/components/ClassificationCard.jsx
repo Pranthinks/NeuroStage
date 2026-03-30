@@ -40,7 +40,7 @@ const ClassificationCard = ({
             className="download-btn"
             onClick={onDownloadAll}
           >
-            📥 Download All
+             Download All
           </button>
         </div>
       </div>
@@ -72,7 +72,7 @@ const ClassificationCard = ({
                   className="file-view-btn"
                   onClick={() => onViewFile(classification, file.main_file)}
                 >
-                  👁️ View
+                  View
                 </button>
               )}
               <button 

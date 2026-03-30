@@ -4,6 +4,7 @@ import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import HomePage from './components/HomePage';
 import ClassifyPage from './components/ClassifyPage';
+import PreprocessingPage from './components/PreprocessingPage';
 
 const App = () => {
   const [currentPage, setCurrentPage] = useState('main');
@@ -27,7 +28,7 @@ const App = () => {
   };
     
   // Protected route check - only for truly protected pages
-  if ((currentPage === 'home' || currentPage === 'classify') && !isAuthenticated) {
+  if ((currentPage === 'home' || currentPage === 'classify' || currentPage === 'preprocessing') && !isAuthenticated) {
     setCurrentPage('login');
   }
   // Main page is accessible to both logged-in and logged-out users
@@ -39,6 +40,7 @@ const App = () => {
       {currentPage === 'register' && <RegisterPage setCurrentPage={setCurrentPage} setIsAuthenticated={setIsAuthenticated} />}
       {currentPage === 'home' && <HomePage setCurrentPage={setCurrentPage} logout={logout} />}
       {currentPage === 'classify' && <ClassifyPage setCurrentPage={setCurrentPage} logout={logout} />}
+      {currentPage === 'preprocessing' && <PreprocessingPage setCurrentPage={setCurrentPage} />}
     </div>
   );
 };

@@ -1,8 +1,17 @@
-# Frontend ignores
-frontend/node_modules/
-frontend/package-lock.json
-users.json
+# Patient data — never commit these
+temp_*/
+
+# FreeSurfer license — never commit this
+license.txt
+
+# Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
+.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Users database
+users.json

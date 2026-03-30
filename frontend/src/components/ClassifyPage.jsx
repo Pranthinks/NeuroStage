@@ -140,16 +140,9 @@ const ClassifyPage = ({ setCurrentPage }) => {
   };
 
   const handleProceedToPreprocessing = () => {
-    const { classification } = confirmationDialog;
-    
-    // Close dialog
+    // Close dialog and navigate to preprocessing page
     setConfirmationDialog({ isOpen: false, classification: null });
-    
-    // TODO: Navigate to preprocessing page or trigger preprocessing workflow
-    alert(`Proceeding to preprocessing for ${getClassificationLabel(classification)}. This feature will be implemented next!`);
-    
-    // You might want to navigate to a preprocessing page:
-    // setCurrentPage('preprocessing');
+    setCurrentPage('preprocessing');
   };
 
   const handleValidateResults = () => {
@@ -231,6 +224,42 @@ const ClassifyPage = ({ setCurrentPage }) => {
         </button>
       </div>
 
+      {/* Tab navigation */}
+      <div style={{ display: 'flex', gap: '0', marginBottom: '1.5rem', borderBottom: '2px solid #e5e7eb' }}>
+        <button style={{
+          padding: '0.65rem 1.5rem',
+          border: 'none',
+          borderBottom: '2px solid #3b82f6',
+          background: 'none',
+          fontWeight: 600,
+          color: '#3b82f6',
+          cursor: 'pointer',
+          marginBottom: '-2px',
+          fontSize: '0.9rem'
+        }}>
+          Files & Quality Control
+        </button>
+        <button
+          style={{
+            padding: '0.65rem 1.5rem',
+            border: 'none',
+            borderBottom: '2px solid transparent',
+            background: 'none',
+            fontWeight: 500,
+            color: '#6b7280',
+            cursor: 'pointer',
+            marginBottom: '-2px',
+            fontSize: '0.9rem',
+            transition: 'color 0.15s'
+          }}
+          onClick={() => setCurrentPage('preprocessing')}
+          onMouseEnter={e => e.target.style.color = '#374151'}
+          onMouseLeave={e => e.target.style.color = '#6b7280'}
+        >
+          Preprocessing Pipelines →
+        </button>
+      </div>
+
       {folders.length === 0 ? (
         <div className="empty-state">
           <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{margin: '0 auto 1rem'}}>
@@ -306,6 +335,23 @@ const ClassifyPage = ({ setCurrentPage }) => {
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <footer style={{
+        background: 'rgba(255, 255, 255, 0.9)',
+        borderTop: '1px solid rgba(229, 231, 235, 0.5)',
+        padding: '1.5rem 2rem',
+        textAlign: 'center',
+        marginTop: '3rem'
+      }}>
+        <p style={{
+          color: '#6b7280',
+          fontSize: '0.875rem',
+          margin: 0
+        }}>
+          Copyright © UAB EN4D2 Lab 2025
+        </p>
+      </footer>
     </div>
   );
 };

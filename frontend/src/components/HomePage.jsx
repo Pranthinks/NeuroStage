@@ -301,6 +301,23 @@ const HomePage = ({ setCurrentPage, logout }) => {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer style={{
+        background: 'rgba(255, 255, 255, 0.9)',
+        borderTop: '1px solid rgba(229, 231, 235, 0.5)',
+        padding: '1.5rem 2rem',
+        textAlign: 'center',
+        marginTop: '3rem'
+      }}>
+        <p style={{
+          color: '#6b7280',
+          fontSize: '0.875rem',
+          margin: 0
+        }}>
+          Copyright © UAB EN4D2 Lab 2025
+        </p>
+      </footer>
     </div>
   );
 };

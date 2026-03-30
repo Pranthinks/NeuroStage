@@ -4,6 +4,9 @@ from routes.upload import upload_bp
 from routes.files import files_bp
 from routes.mriqc import mriqc_bp
 from routes.datasets import datasets_bp
+from routes.fmriprep_preprocessing import fmriprep_bp
+from routes.qsiprep_preprocessing import qsiprep_bp
+from routes.aslprep_preprocessing import aslprep_bp
 
 app = Flask(__name__)
 
@@ -13,6 +16,9 @@ app.register_blueprint(upload_bp)
 app.register_blueprint(files_bp)
 app.register_blueprint(mriqc_bp)
 app.register_blueprint(datasets_bp)
+app.register_blueprint(fmriprep_bp)
+app.register_blueprint(qsiprep_bp)
+app.register_blueprint(aslprep_bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
