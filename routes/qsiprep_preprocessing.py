@@ -20,7 +20,7 @@ def build_qsiprep(bids_abs, output_abs, work_abs, license_abs, subject_id):
     command = [
         '/data', '/out', 'participant',
         '--participant-label', subject_id,
-        '--skip_bids_validation',
+        '--skip-bids-validation',
         '--fs-license-file', '/opt/freesurfer/license.txt',
         '-w', '/work',
         '--output-resolution', '1.6'
