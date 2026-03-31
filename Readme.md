@@ -127,7 +127,7 @@ docker ps
 ### 3. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/neurostage.git
+git clone https://github.com/Pranthinks/NeuroStage.git
 cd neurostage
 ```
 
@@ -315,9 +315,7 @@ http://localhost:5173
 ## Using NeuroStage
 
 ### Create an Account
-Register on the login page. A demo account is also available:
-- Email: `demo@demo.com`
-- Password: `demo123`
+Register on the login page.
 
 ### Upload Data
 1. Compress your DICOM folder into a ZIP file

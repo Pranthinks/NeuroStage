@@ -7,6 +7,7 @@ from routes.datasets import datasets_bp
 from routes.fmriprep_preprocessing import fmriprep_bp
 from routes.qsiprep_preprocessing import qsiprep_bp
 from routes.aslprep_preprocessing import aslprep_bp
+from routes.freesurfer_preprocessing import freesurfer_bp
 
 app = Flask(__name__)
 
@@ -19,6 +20,7 @@ app.register_blueprint(datasets_bp)
 app.register_blueprint(fmriprep_bp)
 app.register_blueprint(qsiprep_bp)
 app.register_blueprint(aslprep_bp)
+app.register_blueprint(freesurfer_bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
