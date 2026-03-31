@@ -55,11 +55,12 @@ Before starting, make sure your system meets these requirements:
 
 ## Prerequisites
 
-You need three things installed before setting up NeuroStage:
+You need two things installed before setting up NeuroStage:
 
 1. [Anaconda or Miniconda](#1-install-anaconda)
-2. [Node.js and npm](#2-install-nodejs-and-npm)
-3. [Docker](#3-install-docker)
+2. [Docker](#2-install-docker)
+
+Node.js and npm will be installed inside the conda environment in a later step.
 
 ---
 
@@ -128,7 +129,7 @@ docker ps
 
 ```bash
 git clone https://github.com/Pranthinks/NeuroStage.git
-cd neurostage
+cd NeuroStage
 ```
 
 ---
@@ -147,7 +148,7 @@ cp /path/to/your/license.txt ./license.txt
 
 Your project root should look like this:
 ```
-neurostage/
+NeuroStage/
 ├── app.py
 ├── license.txt    ← here
 ├── requirements.txt
@@ -233,7 +234,7 @@ In a new terminal, activate the conda environment and start Flask:
 
 ```bash
 conda activate neurostage
-cd neurostage
+cd NeuroStage
 python app.py
 ```
 
@@ -252,35 +253,40 @@ The backend API is now running at `http://localhost:5000`.
 This is a **one-time step**. These images are large (5–15 GB each) so run this when you have a good internet connection. You do not need all of them — pull only the pipelines you plan to use.
 
 ```bash
-# Quality Control (required — used for MRIQC)
+# Quality Control — required, used for MRIQC on all modalities
 docker pull nipreps/mriqc:latest
 
-# Functional MRI preprocessing (pull if you have BOLD data)
+# Functional MRI preprocessing — pull if you have BOLD data
 docker pull nipreps/fmriprep:latest
 
-# Diffusion MRI preprocessing (pull if you have DWI data)
+# Diffusion MRI preprocessing — pull if you have DWI data
 docker pull pennbbl/qsiprep:latest
 
-# Perfusion / ASL preprocessing (pull if you have ASL/PCASL data)
+# Perfusion / ASL preprocessing — pull if you have ASL/PCASL data
 docker pull pennlinc/aslprep:latest
 
-# Cortical surface reconstruction (pull if you have T1w data and want surfaces)
+# Cortical surface reconstruction from T1w — pull if you want FreeSurfer outputs
 docker pull freesurfer/freesurfer:7.4.1
+
+# HCP minimal preprocessing pipelines — pull if you have both T1w AND T2w
+# Note: HCP requires both T1w and T2w — it will not run with T1w alone
+docker pull humanconnectome/hcp-pipelines:v4.7.0
 ```
 
-Verify images are downloaded:
+Verify all images are downloaded:
 ```bash
 docker images
 ```
 
 You should see output like:
 ```
-REPOSITORY                TAG       SIZE
-nipreps/mriqc             latest    ~5 GB
-nipreps/fmriprep          latest    ~15 GB
-pennbbl/qsiprep           latest    ~10 GB
-pennlinc/aslprep          latest    ~8 GB
-freesurfer/freesurfer     7.4.1     ~12 GB
+REPOSITORY                        TAG       SIZE
+nipreps/mriqc                     latest    ~5 GB
+nipreps/fmriprep                  latest    ~15 GB
+pennbbl/qsiprep                   latest    ~10 GB
+pennlinc/aslprep                  latest    ~8 GB
+freesurfer/freesurfer             7.4.1     ~12 GB
+humanconnectome/hcp-pipelines     v4.7.0    ~10 GB
 ```
 
 ---
@@ -292,14 +298,14 @@ Every time you want to use NeuroStage, you need to start two processes:
 **Terminal 1 — Frontend:**
 ```bash
 conda activate neurostage
-cd neurostage/frontend
+cd NeuroStage/frontend
 npm run dev
 ```
 
 **Terminal 2 — Backend:**
 ```bash
 conda activate neurostage
-cd neurostage
+cd NeuroStage
 python app.py
 ```
 
@@ -329,7 +335,7 @@ After upload, go to **Dataset Classification & Quality Control**. Your scans wil
 - **Functional (BOLD)**
 - **Diffusion (DWI)**
 - **Perfusion (ASL)**
-- **Unclassified** (anything that couldn't be automatically classified)
+- **Unclassified** (anything that could not be automatically classified)
 
 Click any NIfTI file to view it in the browser viewer.
 
@@ -339,13 +345,15 @@ Click **Run Quality Control** on any modality card. MRIQC will run in a Docker c
 ### Run Preprocessing
 Click the **Preprocessing Pipelines** tab. Select your dataset from the sidebar. Click **Run** on any pipeline. Pipelines run in Docker containers — processing times:
 
-| Pipeline | Data type | Typical time |
-|---|---|---|
-| fMRIPrep | BOLD | 2–6 hours |
-| QSIPrep | DWI | 2–4 hours |
-| ASLPrep | ASL/PCASL | 1–3 hours |
-| FreeSurfer | T1w | 8–12 hours |
-| HCP Pipeline | T1w + T2w | 4–8 hours |
+| Pipeline | Data type | Requires | Typical time |
+|---|---|---|---|
+| fMRIPrep | BOLD | T1w + BOLD | 2–6 hours |
+| QSIPrep | DWI | T1w + DWI | 2–4 hours |
+| ASLPrep | ASL/PCASL | T1w + ASL | 1–3 hours |
+| FreeSurfer | T1w only | T1w | 8–12 hours |
+| HCP Pipeline | T1w + T2w | **Both** T1w and T2w | 4–8 hours |
+
+> **HCP Pipeline note:** HCP requires both a T1w and T2w scan. If either is missing, the pipeline will not start and will show an error. Run FreeSurfer instead if you only have T1w.
 
 When complete, the pipeline card shows a **Reports** section. Click any report to view it in your browser.
 
@@ -354,40 +362,42 @@ When complete, the pipeline card shows a **Reports** section. Click any report t
 ## Project Structure
 
 ```
-neurostage/
-├── app.py                            # Flask application entry point
-├── requirements.txt                  # Python dependencies
-├── license.txt                       # FreeSurfer license (you provide this)
-├── config.py                         # dcm2bids configuration
+NeuroStage/
+├── app.py                              # Flask application entry point
+├── requirements.txt                    # Python dependencies
+├── license.txt                         # FreeSurfer license (you provide this)
+├── config.py                           # dcm2bids configuration
 │
 ├── routes/
-│   ├── auth.py                       # Login and registration
-│   ├── upload.py                     # DICOM upload and BIDS conversion
-│   ├── files.py                      # File serving and downloads
-│   ├── mriqc.py                      # MRIQC quality control
-│   ├── datasets.py                   # Public dataset catalogue
-│   ├── fmriprep_preprocessing.py     # fMRIPrep pipeline
-│   ├── qsiprep_preprocessing.py      # QSIPrep pipeline
-│   └── aslprep_preprocessing.py      # ASLPrep pipeline
+│   ├── auth.py                         # Login and registration
+│   ├── upload.py                       # DICOM upload and BIDS conversion
+│   ├── files.py                        # File serving and downloads
+│   ├── mriqc.py                        # MRIQC quality control
+│   ├── datasets.py                     # Public dataset catalogue
+│   ├── fmriprep_preprocessing.py       # fMRIPrep pipeline
+│   ├── qsiprep_preprocessing.py        # QSIPrep pipeline
+│   ├── aslprep_preprocessing.py        # ASLPrep pipeline
+│   ├── freesurfer_preprocessing.py     # FreeSurfer pipeline
+│   └── hcp_preprocessing.py           # HCP Pipeline
 │
 ├── utils/
-│   ├── preproc_utils.py              # Shared Docker utilities for all pipelines
-│   ├── dicom_utils.py                # DICOM file handling
-│   ├── bids_utils.py                 # BIDS validation helpers
-│   ├── anonymize_dicom.py            # DICOM anonymisation
-│   └── anonymize_json.py             # JSON sidecar anonymisation
+│   ├── preproc_utils.py                # Shared Docker utilities for all pipelines
+│   ├── dicom_utils.py                  # DICOM file handling
+│   ├── bids_utils.py                   # BIDS validation helpers
+│   ├── anonymize_dicom.py              # DICOM anonymisation
+│   └── anonymize_json.py              # JSON sidecar anonymisation
 │
 └── frontend/
     ├── src/
-    │   ├── App.jsx                   # Main app router
+    │   ├── App.jsx                     # Main app router
     │   ├── components/
-    │   │   ├── MainPage.jsx          # Landing page
-    │   │   ├── LoginPage.jsx         # Authentication
-    │   │   ├── RegisterPage.jsx      # Registration
-    │   │   ├── HomePage.jsx          # Upload dashboard
-    │   │   ├── ClassifyPage.jsx      # File viewer and MRIQC
-    │   │   ├── PreprocessingPage.jsx # Preprocessing pipeline UI
-    │   │   ├── NiftiViewer.jsx       # In-browser NIfTI viewer
+    │   │   ├── MainPage.jsx            # Landing page
+    │   │   ├── LoginPage.jsx           # Authentication
+    │   │   ├── RegisterPage.jsx        # Registration
+    │   │   ├── HomePage.jsx            # Upload dashboard
+    │   │   ├── ClassifyPage.jsx        # File viewer and MRIQC
+    │   │   ├── PreprocessingPage.jsx   # Preprocessing pipeline UI
+    │   │   ├── NiftiViewer.jsx         # In-browser NIfTI viewer
     │   │   ├── ClassificationCard.jsx
     │   │   ├── MriqcSection.jsx
     │   │   ├── MriqcConfirmationDialog.jsx
@@ -404,27 +414,77 @@ After processing, outputs are stored inside the dataset folder (`temp_*/`):
 
 ```
 temp_<id>/
-├── bids_output/            # BIDS-converted data
+├── bids_output/              # BIDS-converted data
 │   └── sub-01/
-│       ├── anat/           # T1w, T2w
-│       ├── func/           # BOLD
-│       ├── dwi/            # Diffusion
-│       └── perf/           # ASL
-├── unclassified/           # Files that could not be classified
-├── mriqc_output_anat/      # MRIQC reports for anatomical
-├── mriqc_output_func/      # MRIQC reports for functional
-├── mriqc_output_dwi/       # MRIQC reports for diffusion
-├── preproc_fmriprep/       # fMRIPrep outputs + HTML report
-├── preproc_fmriprep_work/  # fMRIPrep working directory (can be deleted after)
-├── preproc_qsiprep/        # QSIPrep outputs + HTML report
-├── preproc_aslprep/        # ASLPrep outputs + HTML report
-└── sourcedata_anonymized/  # Anonymised DICOMs (kept for audit)
+│       ├── anat/             # T1w, T2w
+│       ├── func/             # BOLD
+│       ├── dwi/              # Diffusion
+│       └── perf/             # ASL
+├── unclassified/             # Files that could not be classified
+├── mriqc_output_anat/        # MRIQC reports for anatomical
+├── mriqc_output_func/        # MRIQC reports for functional
+├── mriqc_output_dwi/         # MRIQC reports for diffusion
+├── preproc_fmriprep/         # fMRIPrep outputs + HTML report
+├── preproc_fmriprep_work/    # fMRIPrep working directory — DELETE after processing
+├── preproc_qsiprep/          # QSIPrep outputs + HTML report
+├── preproc_qsiprep_work/     # QSIPrep working directory — DELETE after processing
+├── preproc_aslprep/          # ASLPrep outputs + HTML report
+├── preproc_aslprep_work/     # ASLPrep working directory — DELETE after processing
+├── preproc_freesurfer/       # FreeSurfer surface reconstruction outputs
+├── preproc_hcp/              # HCP pipeline outputs
+├── preproc_hcp_work/         # HCP working directory — DELETE after processing
+└── sourcedata_anonymized/    # Anonymised DICOMs (kept for audit)
 ```
 
-> **Disk space note:** Working directories (`preproc_*_work/`) can be very large (50–100 GB for fMRIPrep). Delete them after processing is complete to free space:
-> ```bash
-> sudo rm -rf temp_*/preproc_*_work/
-> ```
+---
+
+## Disk Space Management
+
+Neuroimaging outputs are large. Each pipeline creates **two folders** — one for final results and one for intermediate working files. Only the results folder matters after processing is done.
+
+### What each folder pair means
+
+For every pipeline you run, you will see two folders inside your dataset directory (e.g. `temp_1/`):
+
+| Folder | What it contains | Keep or delete? |
+|---|---|---|
+| `preproc_fmriprep/` | ✅ Final fMRIPrep outputs — preprocessed NIfTI files, HTML report | **Keep** |
+| `preproc_fmriprep_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (50–100 GB) |
+| `preproc_qsiprep/` | ✅ Final QSIPrep outputs — corrected DWI files, HTML report | **Keep** |
+| `preproc_qsiprep_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (20–50 GB) |
+| `preproc_aslprep/` | ✅ Final ASLPrep outputs — CBF maps, HTML report | **Keep** |
+| `preproc_aslprep_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (10–30 GB) |
+| `preproc_freesurfer/` | ✅ Final FreeSurfer outputs — surfaces, segmentations, thickness maps | **Keep** |
+| `preproc_hcp/` | ✅ Final HCP outputs — CIFTI grayordinate files | **Keep** |
+| `preproc_hcp_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (20–40 GB) |
+| `bids_output/` | ✅ Your BIDS-converted data | **Keep** |
+| `sourcedata_anonymized/` | ✅ Anonymised DICOMs for audit trail | **Keep** |
+| `mriqc_output_*/` | ✅ MRIQC quality control reports | **Keep** |
+
+> **Simple rule: if the folder name ends in `_work/` — delete it. If it does not — keep it.**
+>
+> **FreeSurfer exception:** FreeSurfer does not create a `_work/` folder. Everything goes into `preproc_freesurfer/` directly. Keep the whole folder.
+
+### How to delete working directories after processing
+
+Delete all working directories across all datasets at once:
+```bash
+sudo rm -rf temp_*/preproc_*_work/
+```
+
+Or delete for a specific dataset and pipeline:
+```bash
+# Delete only QSIPrep working files for dataset temp_1
+sudo rm -rf temp_1/preproc_qsiprep_work/
+
+# Delete only fMRIPrep working files for dataset temp_1
+sudo rm -rf temp_1/preproc_fmriprep_work/
+
+# Delete only HCP working files for dataset temp_1
+sudo rm -rf temp_1/preproc_hcp_work/
+```
+
+> `sudo` is needed because Docker may have written some files as root. This is safe — the `_work/` folders contain only temporary processing files, not your results.
 
 ---
 
@@ -455,19 +515,24 @@ kill -9 <PID>
 ### Frontend not connecting to backend
 Make sure both servers are running. The frontend (port 5173) proxies API requests to the backend (port 5000). Check `vite.config.js` to confirm the proxy is set to `http://localhost:5000`.
 
-### Pipeline output files owned by root (can't delete)
+### Pipeline output files owned by root (cannot delete)
 Docker containers sometimes write files as root. Use sudo to remove them:
 ```bash
-sudo rm -rf temp_*/preproc_fmriprep
-sudo rm -rf temp_*/preproc_fmriprep_work
+sudo rm -rf temp_*/preproc_*_work/
 ```
-This is fixed in the current version by passing user flags to Docker.
 
 ### FreeSurfer license error
 Make sure `license.txt` is in the project root (same folder as `app.py`):
 ```bash
 ls -la license.txt  # should exist
 ```
+
+### HCP pipeline fails immediately — missing T2w
+HCP requires both T1w and T2w scans. Check your anat folder:
+```bash
+ls temp_1/bids_output/sub-01/anat/
+```
+You should see both a `T1w.nii.gz` and a `T2w.nii.gz` file. If T2w is missing, use FreeSurfer instead which only needs T1w.
 
 ### dcm2bids not found after installing requirements
 ```bash
@@ -479,52 +544,10 @@ pip install dcm2bids
 Check the container logs:
 ```bash
 docker logs preproc_fmriprep_temp_1 --tail 50
-# Replace fmriprep and temp_1 with your pipeline and dataset name
+# Replace fmriprep and temp_1 with your pipeline name and dataset folder name
 ```
 
 Or use the **Show logs** button on the pipeline card in the UI.
-
----
-
-## Disk Space Management
-
-Neuroimaging outputs are large. Each pipeline creates **two folders** — one for final results and one for intermediate working files. Only the results folder matters after processing is done.
-
-### What each folder pair means
-
-For every pipeline you run, you will see two folders inside your dataset directory (e.g. `temp_1/`):
-
-| Folder | What it contains | Keep or delete? |
-|---|---|---|
-| `preproc_fmriprep/` | ✅ Final fMRIPrep outputs — preprocessed NIfTI files, HTML report | **Keep** |
-| `preproc_fmriprep_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (50–100 GB) |
-| `preproc_qsiprep/` | ✅ Final QSIPrep outputs — corrected DWI files, HTML report | **Keep** |
-| `preproc_qsiprep_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (20–50 GB) |
-| `preproc_aslprep/` | ✅ Final ASLPrep outputs — CBF maps, HTML report | **Keep** |
-| `preproc_aslprep_work/` | ❌ Intermediate working files only — not needed after processing | **Delete** (10–30 GB) |
-| `bids_output/` | ✅ Your BIDS-converted data | **Keep** |
-| `sourcedata_anonymized/` | ✅ Anonymised DICOMs for audit trail | **Keep** |
-| `mriqc_output_*/` | ✅ MRIQC quality control reports | **Keep** |
-
-> **Simple rule: if the folder name ends in `_work/` — delete it. If it doesn't — keep it.**
-
-### How to delete working directories after processing
-
-Delete all working directories across all datasets at once:
-```bash
-sudo rm -rf temp_*/preproc_*_work/
-```
-
-Or delete for a specific dataset and pipeline:
-```bash
-# Example: delete only QSIPrep working files for dataset temp_1
-sudo rm -rf temp_1/preproc_qsiprep_work/
-
-# Example: delete only fMRIPrep working files for dataset temp_1
-sudo rm -rf temp_1/preproc_fmriprep_work/
-```
-
-> `sudo` is needed because Docker may have written some files as root. This is safe — the `_work/` folders contain only temporary processing files, not your results.
 
 ---
 
