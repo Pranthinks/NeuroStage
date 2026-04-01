@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify, send_from_directory
 import os
+import docker
+import time
 from utils.preproc_utils import (
     FS_LICENSE,
     get_pipeline_status,
     get_container_logs,
     find_html_reports,
-    find_output_files,
-    run_container
+    find_output_files
 )
 
 freesurfer_bp = Blueprint('freesurfer', __name__)
@@ -17,10 +18,7 @@ CLASSIFICATION = 'anat'
 
 
 def get_t1_files(bids_abs, subject_id):
-    """
-    Find all T1w NIfTI files for the subject.
-    Returns list of filenames.
-    """
+    """Find all T1w NIfTI files for the subject."""
     anat_dir = os.path.join(bids_abs, f'sub-{subject_id}', 'anat')
     if not os.path.exists(anat_dir):
         return []
@@ -30,24 +28,79 @@ def get_t1_files(bids_abs, subject_id):
     ]
 
 
-def build_freesurfer(bids_abs, output_abs, license_abs, subject_id, t1_file):
+def run_freesurfer_container(bids_abs, output_abs, license_abs, subject_id, t1_file, container_name, output_dir):
     """
-    Build FreeSurfer recon-all command.
-    Runs full cortical surface reconstruction on the T1w image.
+    Run FreeSurfer container WITHOUT the user flag.
+    FreeSurfer requires root inside the container — passing user= causes
+    'Permission denied' errors on /root.
+    Output files will be owned by root; use sudo to delete them if needed.
     """
-    command = [
-        'recon-all',
-        '-s', f'sub-{subject_id}',
-        '-i', f'/data/sub-{subject_id}/anat/{t1_file}',
-        '-all',
-        '-sd', '/out'
-    ]
-    volumes = {
-        bids_abs:    {'bind': '/data', 'mode': 'ro'},
-        output_abs:  {'bind': '/out',  'mode': 'rw'},
-        license_abs: {'bind': '/usr/local/freesurfer/license.txt', 'mode': 'ro'},
-    }
-    return DOCKER_IMAGE, command, volumes
+    running_file = os.path.join(output_dir, '.pipeline_running')
+
+    try:
+        client = docker.from_env()
+
+        # Pull image if not present
+        try:
+            client.images.get(DOCKER_IMAGE)
+        except docker.errors.ImageNotFound:
+            print(f"Pulling {DOCKER_IMAGE} ...")
+            client.images.pull(DOCKER_IMAGE)
+
+        # Remove old container if exists
+        try:
+            client.containers.get(container_name).remove(force=True)
+        except Exception:
+            pass
+
+        os.makedirs(output_dir, exist_ok=True)
+        with open(running_file, 'w') as f:
+            f.write('running')
+
+        command = [
+            'recon-all',
+            '-s', f'sub-{subject_id}',
+            '-i', f'/data/sub-{subject_id}/anat/{t1_file}',
+            '-all',
+            '-sd', '/out'
+        ]
+        volumes = {
+            bids_abs:    {'bind': '/data', 'mode': 'ro'},
+            output_abs:  {'bind': '/out',  'mode': 'rw'},
+            license_abs: {'bind': '/usr/local/freesurfer/license.txt', 'mode': 'ro'},
+        }
+
+        print(f"Starting FreeSurfer container: {container_name}")
+        print(f"  T1w: {t1_file}")
+        print(f"  Output: {output_abs}")
+
+        # NOTE: No user= flag here — FreeSurfer must run as root
+        container = client.containers.run(
+            image=DOCKER_IMAGE,
+            command=command,
+            volumes=volumes,
+            name=container_name,
+            remove=False,
+            detach=True
+        )
+
+        # Wait 2s and confirm it didn't crash immediately
+        time.sleep(2)
+        container.reload()
+
+        if container.status not in ('running', 'created'):
+            logs = container.logs().decode('utf-8', errors='replace')
+            if os.path.exists(running_file):
+                os.remove(running_file)
+            return False, logs, None
+
+        return True, 'started', container.id[:12]
+
+    except Exception as e:
+        if os.path.exists(running_file):
+            os.remove(running_file)
+        print(f"ERROR starting FreeSurfer: {e}")
+        return False, str(e), None
 
 
 # ── Routes ────────────────────────────────────────────────────────────
@@ -68,14 +121,12 @@ def run_freesurfer():
     if not os.path.exists(FS_LICENSE):
         return jsonify({'status': 'error', 'message': f'license.txt not found at {FS_LICENSE}'}), 400
 
-    # Find T1w files
     bids_abs = os.path.abspath(bids_dir)
     t1_files = get_t1_files(bids_abs, subject_id)
 
     if not t1_files:
         return jsonify({'status': 'error', 'message': f'No T1w files found for sub-{subject_id}'}), 404
 
-    # Use the first T1w file found
     t1_file = t1_files[0]
     print(f"FreeSurfer will use: {t1_file}")
     if len(t1_files) > 1:
@@ -84,17 +135,15 @@ def run_freesurfer():
     output_dir     = os.path.join(folder_name, f'preproc_{PIPELINE_ID}')
     container_name = f'preproc_{PIPELINE_ID}_{folder_name}'
 
-    os.makedirs(output_dir, exist_ok=True)
-
-    image, command, volumes = build_freesurfer(
+    success, message, container_id = run_freesurfer_container(
         bids_abs,
         os.path.abspath(output_dir),
         os.path.abspath(FS_LICENSE),
         subject_id,
-        t1_file
+        t1_file,
+        container_name,
+        output_dir
     )
-
-    success, message, container_id = run_container(image, command, volumes, container_name, output_dir)
 
     if not success:
         return jsonify({'status': 'error', 'message': message}), 500
@@ -113,13 +162,10 @@ def freesurfer_status(folder_name):
     container_name = f'preproc_{PIPELINE_ID}_{folder_name}'
     status         = get_pipeline_status(output_dir, container_name)
 
-    # FreeSurfer doesn't produce HTML reports — check for recon-all completion file instead
-    completed = False
-    subject_dir = os.path.join(output_dir, f'sub-01')
-    if os.path.exists(os.path.join(subject_dir, 'surf', 'lh.pial')):
-        completed = True
-
-    if completed and status == 'not_started':
+    # FreeSurfer completion check — lh.pial is one of the last files written
+    subject_dir = os.path.join(output_dir, f'sub-{folder_name.split("_")[-1] if "_" in folder_name else "01"}')
+    pial_file   = os.path.join(output_dir, 'sub-01', 'surf', 'lh.pial')
+    if os.path.exists(pial_file) and status == 'not_started':
         status = 'completed'
 
     return jsonify({'status': status, 'reports': []})
@@ -130,7 +176,6 @@ def freesurfer_results(folder_name):
     output_dir  = os.path.join(folder_name, f'preproc_{PIPELINE_ID}')
     subject_dir = os.path.join(output_dir, 'sub-01')
 
-    # FreeSurfer outputs key files — list the most useful ones
     key_outputs = []
     if os.path.exists(subject_dir):
         for subdir in ['surf', 'mri', 'stats', 'label']:
@@ -140,14 +185,14 @@ def freesurfer_results(folder_name):
                 key_outputs.append({
                     'folder': subdir,
                     'file_count': len(files),
-                    'files': files[:10]  # show first 10 only
+                    'files': files[:10]
                 })
 
     return jsonify({
-        'status':   'success',
-        'reports':  [],
-        'files':    find_output_files(output_dir),
-        'outputs':  key_outputs
+        'status':  'success',
+        'reports': [],
+        'files':   find_output_files(output_dir),
+        'outputs': key_outputs
     })
 
 
